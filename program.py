@@ -9,21 +9,22 @@ import os
 
 
 # Import operations
-operation_files = [ filename for filename in os.listdir() if filename.endswith('_op.py') ] # List containing the names of all suspected image operation files
+op_files = [ filename for filename in os.listdir() if filename.endswith('_op.py') ] # List containing the names of all suspected image operation files
 ops = {}   # List of loaded image operations
 
 # Attempt importing detected image operations
-for operation_file in operation_files:
+for op_file in op_files:
     try:
-        temp = importlib.import_module(operation_file.removesuffix('.py'))
+        module = importlib.import_module(op_file.removesuffix('.py'))
+        op = module.get_instance()
         
-        if temp.name in ops.keys():
-            raise ImportError(f'An image operation already exists with the name {temp.name}')
+        if op.name() in ops.keys():
+            raise ImportError(f'An image operation already exists with the name {op.name()}')
             continue
         
-        ops[temp.name] = temp
+        ops[op.name()] = op
     except ImportError as err:
-        print(f'Error: failed to import {operation_file}: {err}')
+        print(f'Error: failed to import {op_file}: {err}')
 
 ops = ops.values()
 
@@ -47,7 +48,7 @@ input_column = [
 
 operations_column = [
     [
-        sg.Frame(op.name.title(), [[op.get_gui()]], key=f'{op.name}_FRAME') for op in ops
+        sg.Frame(op.name().title(), [[op.get_gui()]], key=f'{op.name()}_FRAME') for op in ops
     ]
 ]
 
@@ -93,12 +94,15 @@ while True:
             pass
 
         print(np.array(Image.open(filename)))
-    elif any(event.startswith(image_op.name) for image_op in ops):
-        operation = list(filter(lambda op: event.startswith(op.name), ops))[0].get_operation(event)
+    elif any(event.startswith(op.name()) for op in ops):
+        # On import ops is verified to have unique name values so any() returning true means 1 matching
+        operation = list(filter(lambda op: event.startswith(op.name()), ops))[0].get_operation(event)
         operation('')
     else:
+        print('Error: failed to find corresponding action for event')
         print("Event:", event)
         print("Values:", values)
+        print()
             
 
 
