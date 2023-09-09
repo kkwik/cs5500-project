@@ -25,10 +25,12 @@ class Zoom(ImageOperationInterface):
         return gui
 
     # Operations
+    @staticmethod
     def zoom_in(input):
         print("ZOOM IN")
         return ""
 
+    @staticmethod
     def zoom_out(input):
         print("ZOOM OUT")
         return ""

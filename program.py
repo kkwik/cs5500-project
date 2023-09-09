@@ -47,10 +47,8 @@ input_column = [
 ]
 
 operations_column = [
-    [
-        sg.Frame(op.name().title(), [[op.get_gui()]], key=f'{op.name()}_FRAME') for op in ops
+        [sg.Frame(op.name().title(), [[op.get_gui()]], key=f'{op.name()}_FRAME')] for op in ops
     ]
-]
 
 output_column = [
     [
@@ -76,7 +74,7 @@ layout = [
 
 window = sg.Window(title="Program", layout=layout, resizable=True, element_justification='c')
 
-input_image = []
+input_data = []
 
 while True:
     event, values = window.read()
@@ -93,11 +91,12 @@ while True:
         except:
             pass
 
-        print(np.array(Image.open(filename)))
+        input_data = np.array(Image.open(filename))
     elif any(event.startswith(op.name()) for op in ops):
         # On import ops is verified to have unique name values so any() returning true means 1 matching
-        operation = list(filter(lambda op: event.startswith(op.name()), ops))[0].get_operation(event)
-        operation('')
+        temp = list(filter(lambda op: event.startswith(op.name()), ops))[0]
+        operation = temp.get_operation(operation_name=event)
+        operation(input_data)
     else:
         print('Error: failed to find corresponding action for event')
         print("Event:", event)
