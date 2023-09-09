@@ -1,6 +1,6 @@
 import PySimpleGUI as sg
 from ImageOperationInterface import ImageOperationInterface
-
+import numpy as np
 
 class Zoom(ImageOperationInterface):
     @staticmethod
@@ -26,14 +26,14 @@ class Zoom(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def zoom_in(input):
+    def zoom_in(original, modified):
         print("ZOOM IN")
-        return ""
+        return np.transpose(modified)
 
     @staticmethod
-    def zoom_out(input):
+    def zoom_out(original, modified):
         print("ZOOM OUT")
-        return ""
+        return np.transpose(modified)
 
     # Events
     @staticmethod
