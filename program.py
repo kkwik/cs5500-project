@@ -2,9 +2,24 @@ import PySimpleGUI as sg
 import PIL
 from PIL import Image
 from util import convert_to_bytes
-import zoom
-import numpy as np
+import importlib
 
+import numpy as np
+import os 
+
+
+# Import operations
+operation_files = [ filename for filename in os.listdir() if filename.endswith('_op.py') ] # List containing the names of all suspected image operation files
+ops = []    # List of loaded image operations
+
+# Attempt importing detected image operations
+for operation_file in operation_files:
+    try:
+        ops.append(importlib.import_module(operation_file.removesuffix('.py')))
+    except ImportError:
+        print(f'Error: failed to import {operation_file}')
+
+# Define layout
 input_selection_row = [
     [
         sg.Text("Select Input Image", key="input_text"),
@@ -24,7 +39,7 @@ input_column = [
 
 operations_column = [
     [
-        sg.Frame("Zoom", [[zoom.get_gui()]], key="ZOOM_FRAME")
+        sg.Frame(op.name.title(), [[op.get_gui()]], key=f'{op.name}_FRAME') for op in ops
     ]
 ]
 
@@ -70,8 +85,9 @@ while True:
             pass
 
         print(np.array(Image.open(filename)))
-    elif event.startswith("ZOOM"):
-        zoom.handle_event(event, input_image)
+    elif any(event.startswith(image_op.name) for image_op in ops):
+        operation = list(filter(lambda op: event.startswith(op.name), ops))[0].get_operation(event)
+        operation('')
     else:
         print("Event:", event)
         print("Values:", values)
