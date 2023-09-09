@@ -10,14 +10,22 @@ import os
 
 # Import operations
 operation_files = [ filename for filename in os.listdir() if filename.endswith('_op.py') ] # List containing the names of all suspected image operation files
-ops = []    # List of loaded image operations
+ops = {}   # List of loaded image operations
 
 # Attempt importing detected image operations
 for operation_file in operation_files:
     try:
-        ops.append(importlib.import_module(operation_file.removesuffix('.py')))
-    except ImportError:
-        print(f'Error: failed to import {operation_file}')
+        temp = importlib.import_module(operation_file.removesuffix('.py'))
+        
+        if temp.name in ops.keys():
+            raise ImportError(f'An image operation already exists with the name {temp.name}')
+            continue
+        
+        ops[temp.name] = temp
+    except ImportError as err:
+        print(f'Error: failed to import {operation_file}: {err}')
+
+ops = ops.values()
 
 # Define layout
 input_selection_row = [
