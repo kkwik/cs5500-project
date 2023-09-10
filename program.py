@@ -74,33 +74,32 @@ layout = [
 
 window = sg.Window(title="Program", layout=layout, resizable=True, element_justification='c')
 
-original_data = []
-modified_data = []
+original_data = {}
+modified_data = {}
 
 def update_image(sgImage, pixel_array):
     sgImage.update(data=util.np_arr_to_byteio(pixel_array))
 
 while True:
     event, values = window.read()
-    
+
     if event == "Exit" or event == sg.WIN_CLOSED:
         break
     elif event == "IMAGE_SELECTED":
         # Input Image updated, update display
-        try:
-            filename = values["IMAGE_SELECTED"]
-            
-            input_image = Image.open(filename)      # Load image
-            input_image = input_image.convert('L') # Convert to 8-bit grayscale
-            original_data = np.asarray(input_image) # Extract pixel values as array
-            modified_data = original_data                # Set initial modified_data
 
-            update_image(window["INPUT_DISPLAY"], original_data) # Update input image display
-            update_image(window['OUTPUT_DISPLAY'], modified_data) # Update output image display
+        filename = values["IMAGE_SELECTED"]
+        
+        input_image = Image.open(filename)      # Load image
+        input_image = input_image.convert('L') # Convert to 8-bit grayscale
+        original_data['image'] = np.asarray(input_image) # Extract pixel values as array
+        original_data['gray_resolution'] = 8
+        modified_data = original_data.copy()              # Set initial modified_data
+
+        update_image(window["INPUT_DISPLAY"], original_data['image']) # Update input image display
+        update_image(window['OUTPUT_DISPLAY'], modified_data['image']) # Update output image display
             
-        except Exception as err:
-            print(f'Error loading image: {err}')
-            pass
+
 
     elif values['IMAGE_SELECTED'] != '' and any(event.startswith(op.name()) for op in ops):
         image_op_class = list(filter(lambda op: event.startswith(op.name()), ops))[0] # This access is safe because on import we check so ops contains only unique operation names. Thus any() returning true means exactly one matches exist
@@ -109,7 +108,7 @@ while True:
         related_values = { key: values[key] for key in values if key.startswith(image_op_class.name()) }    # We want to give the image operator all relevant information to do it's job, so give it all values that start with the name of the operation class
         modified_data = image_operation(original_data, modified_data, related_values)
 
-        update_image(window['OUTPUT_DISPLAY'], modified_data) # Update output image display
+        update_image(window['OUTPUT_DISPLAY'], modified_data['image']) # Update output image display
     else:
         print('Error: failed to find corresponding action for event')
         print("Event:", event)
