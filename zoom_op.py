@@ -1,6 +1,7 @@
 import PySimpleGUI as sg
 from ImageOperationInterface import ImageOperationInterface
 import numpy as np
+from math import floor
 np.set_printoptions(threshold=np.inf)
 
 class Zoom(ImageOperationInterface):
@@ -29,13 +30,18 @@ class Zoom(ImageOperationInterface):
 
     # Operations
     @staticmethod
+    def find_nearest(source, pixel, factor):
+        source_mapped_pixel = np.floor(pixel / factor).astype(int)  # Map the pixel location in the upscaled image to the closest pixel in the source image
+        return source[source_mapped_pixel[0]][source_mapped_pixel[1]]   # Retrieve the mapped pixel value
+
+    @staticmethod
     def zoom_nn(start_image, factor):
         old_dim = np.asarray(start_image.shape)
         new_dim = (factor * old_dim).round().astype(np.int64)
 
-        res = np.zeros(new_dim).astype(np.uint8)
+        res = np.zeros(new_dim)
+        res[:] = -1 # Give a nonsense value so we know which values still need to be filled in
         
-
         # i == y, j == x
         # Transfer real values to new size
         for i in range(old_dim[0]):
@@ -43,7 +49,14 @@ class Zoom(ImageOperationInterface):
                 res[round(factor * i)][round(factor * j)] = start_image[i][j]
 
         
-        return res
+
+        # Fill in gaps
+        for i in range(new_dim[0]):
+            for j in range(new_dim[1]):
+                if res[i][j] == -1:
+                    res[i][j] = Zoom.find_nearest(start_image, np.array([i,j]), factor)
+
+        return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
     @staticmethod
     def zoom_linear(start_image, factor):
