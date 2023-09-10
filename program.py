@@ -102,12 +102,12 @@ while True:
             print(f'Error loading image: {err}')
             pass
 
-    elif any(event.startswith(op.name()) for op in ops):
+    elif values['IMAGE_SELECTED'] != '' and any(event.startswith(op.name()) for op in ops):
         image_op_class = list(filter(lambda op: event.startswith(op.name()), ops))[0] # This access is safe because on import we check so ops contains only unique operation names. Thus any() returning true means exactly one matches exist
         image_operation = image_op_class.get_operation(operation_name=event)
-        print(type(module))
-
-        modified_data = image_operation(original_data, modified_data)
+        
+        related_values = { key: values[key] for key in values if key.startswith(image_op_class.name()) }    # We want to give the image operator all relevant information to do it's job, so give it all values that start with the name of the operation class
+        modified_data = image_operation(original_data, modified_data, related_values)
 
         update_image(window['OUTPUT_DISPLAY'], modified_data) # Update output image display
     else:
