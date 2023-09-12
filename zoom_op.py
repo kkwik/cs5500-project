@@ -41,20 +41,26 @@ class Zoom(ImageOperationInterface):
 
         res = np.zeros(new_dim)
         res[:] = -1 # Give a nonsense value so we know which values still need to be filled in
-        
-        # i == y, j == x
-        # Transfer real values to new size
-        for i in range(old_dim[0]):
-            for j in range(old_dim[1]):
-                res[round(factor * i)][round(factor * j)] = start_image[i][j]
 
+        if factor > 1.0:
         
+            # i == y, j == x
+            # Transfer real values to new size
+            # Interestingly, while this first set of for loops can be removed and the second one relied on, 
+            # I've found it marginally faster to include this one. Presumably this is because the math for this 
+            # one is less impactful than the math for the next one so doing work here is marginally more efficient
+            # Difference is maybe 0.5 seconds on lena zooming in 200%
+            for i in range(old_dim[0]):
+                for j in range(old_dim[1]):
+                    res[round(factor * i)][round(factor * j)] = start_image[i][j]
 
-        # Fill in gaps
-        for i in range(new_dim[0]):
-            for j in range(new_dim[1]):
-                if res[i][j] == -1:
-                    res[i][j] = Zoom.find_nearest(start_image, np.array([i,j]), factor)
+            
+
+            # Fill in gaps
+            for i in range(new_dim[0]):
+                for j in range(new_dim[1]):
+                    if res[i][j] == -1:
+                        res[i][j] = Zoom.find_nearest(start_image, np.array([i,j]), factor)
 
         return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
@@ -73,6 +79,9 @@ class Zoom(ImageOperationInterface):
         print("ZOOM APPLY")
         print(values)
 
+        # Requested zoom is 100%, exit
+        if values['ZOOM_SLIDER'] == 100:
+            return working_image
 
         factor = values['ZOOM_SLIDER'] / 100
         result_image = working_image['image']
