@@ -29,6 +29,12 @@ class Zoom(ImageOperationInterface):
         return gui
 
     # Operations
+
+    @staticmethod
+    def zoom_out(start_image, factor):
+        
+        return
+    
     @staticmethod
     def find_nearest(source, pixel, factor):
         source_mapped_pixel = np.floor(pixel / factor).astype(int)  # Map the pixel location in the upscaled image to the closest pixel in the source image
@@ -79,21 +85,23 @@ class Zoom(ImageOperationInterface):
         print("ZOOM APPLY")
         print(values)
 
-        # Requested zoom is 100%, exit
-        if values['ZOOM_SLIDER'] == 100:
-            return working_image
 
         factor = values['ZOOM_SLIDER'] / 100
         result_image = working_image['image']
 
-        if values['ZOOM_TYPE'] == 'Nearest Neighbor':
-            result_image = Zoom.zoom_nn(working_image['image'], factor)
-        elif values['ZOOM_TYPE'] == 'Linear':
-            result_image = Zoom.zoom_linear(working_image['image'], factor)
-        elif values['ZOOM_TYPE'] == 'Bilinear':
-            result_image = Zoom.zoom_bilinear(working_image['image'], factor)
+        if values['ZOOM_SLIDER'] == 100:
+            return working_image # Requested zoom is 100%, exit
+        elif factor < 1:
+            result_image = Zoom.zoom_out(working_image['image'], factor)
         else:
-            print('ERROR: unknown type of zoom requested')
+            if values['ZOOM_TYPE'] == 'Nearest Neighbor':
+                result_image = Zoom.zoom_nn(working_image['image'], factor)
+            elif values['ZOOM_TYPE'] == 'Linear':
+                result_image = Zoom.zoom_linear(working_image['image'], factor)
+            elif values['ZOOM_TYPE'] == 'Bilinear':
+                result_image = Zoom.zoom_bilinear(working_image['image'], factor)
+            else:
+                print('ERROR: unknown type of zoom requested')
 
         working_image['image'] = result_image
         
