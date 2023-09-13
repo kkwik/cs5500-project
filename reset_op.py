@@ -22,7 +22,7 @@ class Reset(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def reset(original, modified, values):
+    def reset(original, modified, window, values):
         return original
 
     # Events

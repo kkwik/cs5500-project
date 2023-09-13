@@ -17,7 +17,15 @@ class Zoom(ImageOperationInterface):
                 sg.Combo(['Nearest Neighbor', 'Linear', 'Bilinear'], default_value='Nearest Neighbor', key='ZOOM_TYPE')
             ],
             [
-                sg.Slider(range=(1,200), default_value=100, size=(20,15), orientation='horizontal', key='ZOOM_SLIDER')
+                sg.Text('X: '),
+                sg.Input(size=(4, 1), justification='right', key='ZOOM_X_RES')
+            ],
+            [
+                sg.Text('Y: '),
+                sg.Input(size=(4, 1), justification='right', key='ZOOM_Y_RES')
+            ],
+            [
+                sg.Checkbox('Lock ratio', key='ZOOM_LOCK_RATIO', enable_events=True)
             ],
             [
                 sg.Button("Apply", key="ZOOM_APPLY"), 
@@ -31,9 +39,38 @@ class Zoom(ImageOperationInterface):
     # Operations
 
     @staticmethod
+    def lock_ratio(source_image, working_image, window, values):
+        window['ZOOM_Y_RES'].update(disabled=values['ZOOM_LOCK_RATIO'])
+        return working_image
+
+    @staticmethod
     def zoom_out(start_image, factor):
+        old_dim = np.asarray(start_image.shape)
+        new_dim = (factor * old_dim).round().astype(np.int64)
+
+        spacing = 1 / factor
         
-        return
+
+        # Get indexes of rows and cols to delete
+        del_rows =  list(filter(lambda num: num % spacing == 0, range(old_dim[0])))
+        del_cols = list(filter(lambda num: num % spacing == 0, range(old_dim[1])))
+
+        # print(list(range(old_dim[0])))
+        print(del_rows)
+        
+        # Adjust indices for deletion of prior entries
+        del_cols = [n - i for i, n in enumerate(del_cols)]
+        del_rows = [n - i for i, n in enumerate(del_rows)]
+
+
+        for del_col in del_cols:
+            start_image = np.delete(start_image, del_col, 1)
+        
+        for del_row in del_rows:
+            start_image = np.delete(start_image, del_row, 0)
+            
+        print(start_image.shape)
+        return start_image
     
     @staticmethod
     def find_nearest(source, pixel, factor):
@@ -81,7 +118,7 @@ class Zoom(ImageOperationInterface):
 
 
     @staticmethod
-    def zoom_apply(source_image, working_image, values):
+    def zoom_apply(source_image, working_image, window, values):
         print("ZOOM APPLY")
         print(values)
 
@@ -113,6 +150,8 @@ class Zoom(ImageOperationInterface):
         
         if operation_name == f'{Zoom.name()}_APPLY':
             return Zoom.zoom_apply
+        elif operation_name == 'ZOOM_LOCK_RATIO':
+            return Zoom.lock_ratio
         else:
             print("Unknown zoom operation")
         return

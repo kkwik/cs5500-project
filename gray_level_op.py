@@ -26,7 +26,7 @@ class GrayResolution(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def gray_apply(original, modified, values):
+    def gray_apply(original, modified, window, values):
         print("GRAY APPLY")
 
         source_gray_res = modified['gray_resolution']

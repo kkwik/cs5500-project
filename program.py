@@ -116,7 +116,7 @@ while True:
         image_operation = image_op_class.get_operation(operation_name=event)
         
         related_values = { key: values[key] for key in values if key.startswith(image_op_class.name()) }    # We want to give the image operator all relevant information to do it's job, so give it all values that start with the name of the operation class
-        modified_data = image_operation(original_data, modified_data, related_values)
+        modified_data = image_operation(original_data, modified_data, window, related_values)
 
         update_image(window['OUTPUT_DISPLAY'], modified_data['image']) # Update output image display
         update_img_res(window['OUTPUT_RES'], modified_data['image'])
