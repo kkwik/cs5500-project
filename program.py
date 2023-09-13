@@ -43,6 +43,9 @@ input_column = [
     ],
     [
         sg.Image(key="INPUT_DISPLAY")
+    ],
+    [
+        sg.Text('', key='INPUT_RES')
     ]
 ]
 
@@ -56,6 +59,9 @@ output_column = [
     ],
     [
         sg.Image(key="OUTPUT_DISPLAY")
+    ],
+    [
+        sg.Text('', key='OUTPUT_RES')
     ]
 ]
 
@@ -80,6 +86,9 @@ modified_data = {}
 def update_image(sgImage, pixel_array):
     sgImage.update(data=util.np_arr_to_byteio(pixel_array))
 
+def update_img_res(sgText, pixel_array):
+    sgText.update(f'{pixel_array.shape[1]}x{pixel_array.shape[0]}')
+
 while True:
     event, values = window.read()
 
@@ -96,9 +105,10 @@ while True:
         original_data['gray_resolution'] = 8
         modified_data = original_data.copy()              # Set initial modified_data
 
-        update_image(window["INPUT_DISPLAY"], original_data['image']) # Update input image display
+        update_image(window['INPUT_DISPLAY'], original_data['image']) # Update input image display
+        update_img_res(window['INPUT_RES'], original_data['image'])
         update_image(window['OUTPUT_DISPLAY'], modified_data['image']) # Update output image display
-            
+        update_img_res(window['OUTPUT_RES'], modified_data['image'])
 
 
     elif values['IMAGE_SELECTED'] != '' and any(event.startswith(op.name()) for op in ops):
@@ -109,10 +119,11 @@ while True:
         modified_data = image_operation(original_data, modified_data, related_values)
 
         update_image(window['OUTPUT_DISPLAY'], modified_data['image']) # Update output image display
+        update_img_res(window['OUTPUT_RES'], modified_data['image'])
     else:
         print('Error: failed to find corresponding action for event')
-        print("Event:", event)
-        print("Values:", values)
+        print('Event:', event)
+        print('Values:', values)
         print()
             
 
