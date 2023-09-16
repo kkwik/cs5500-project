@@ -83,34 +83,38 @@ class Zoom(ImageOperationInterface):
     
     @staticmethod
     def find_nearest(source, pixel, factor):
-        source_mapped_pixel = np.floor(pixel / factor).astype(int)  # Map the pixel location in the upscaled image to the closest pixel in the source image
+        source_mapped_pixel = np.array([pixel[0],np.floor(pixel[1] / factor).astype(int)])  # Map the pixel location in the upscaled image to the closest pixel in the source image
         return source[source_mapped_pixel[0]][source_mapped_pixel[1]]   # Retrieve the mapped pixel value
 
     @staticmethod
     def zoom_nn(base_image, new_image):
-        # old_dim = np.asarray(start_image.shape)
+        old_dim = np.asarray(base_image.shape)
+        new_dim = np.asarray(new_image.shape)
 
-        # res = np.zeros(new_dim)
-        # res[:] = -1 # Give a nonsense value so we know which values still need to be filled in
+        old_width = base_image.shape[1]
+        new_width = new_image.shape[1]
+
+        factor = new_width / old_width
+
+        res = np.zeros(new_image.shape)
+        res[:] = -1 # Give a nonsense value so we know which values still need to be filled in
+
+        # i == y, j == x
+        # Transfer real values to new size
+        # Interestingly, while this first set of for loops can be removed and the second one relied on, 
+        # I've found it marginally faster to include this one. Presumably this is because the math for this 
+        # one is less impactful than the math for the next one so doing work here is marginally more efficient
+        # Difference is maybe 0.5 seconds on lena zooming in 200%
+        for y in range(old_dim[0]):
+            for x in range(old_dim[1]):
+                res[y][round(factor * x)] = base_image[y][x]
 
         
-        # # i == y, j == x
-        # # Transfer real values to new size
-        # # Interestingly, while this first set of for loops can be removed and the second one relied on, 
-        # # I've found it marginally faster to include this one. Presumably this is because the math for this 
-        # # one is less impactful than the math for the next one so doing work here is marginally more efficient
-        # # Difference is maybe 0.5 seconds on lena zooming in 200%
-        # for i in range(old_dim[0]):
-        #     for j in range(old_dim[1]):
-        #         res[round(factor * i)][round(factor * j)] = start_image[i][j]
-
-        
-
-        # # Fill in gaps
-        # for i in range(new_dim[0]):
-        #     for j in range(new_dim[1]):
-        #         if res[i][j] == -1:
-        #             res[i][j] = Zoom.find_nearest(start_image, np.array([i,j]), factor)
+        # Fill in gaps
+        for y in range(new_dim[0]):
+            for x in range(new_dim[1]):
+                if res[y][x] == -1:
+                    res[y][x] = Zoom.find_nearest(base_image, np.array([y,x]), factor)
 
         return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
