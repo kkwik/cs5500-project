@@ -1,7 +1,7 @@
 import PySimpleGUI as sg
 from ImageOperationInterface import ImageOperationInterface
 import numpy as np
-from math import floor
+from math import floor, ceil
 np.set_printoptions(threshold=np.inf)
 
 class Zoom(ImageOperationInterface):
@@ -18,14 +18,14 @@ class Zoom(ImageOperationInterface):
             ],
             [
                 sg.Text('X: '),
-                sg.Input(size=(4, 1), justification='right', key='ZOOM_X_RES')
+                sg.Input(size=(4, 1), justification='right', key='ZOOM_X_RES', enable_events=True)
             ],
             [
                 sg.Text('Y: '),
-                sg.Input(size=(4, 1), justification='right', key='ZOOM_Y_RES')
+                sg.Input(size=(4, 1), justification='right', key='ZOOM_Y_RES', disabled=True)
             ],
             [
-                sg.Checkbox('Lock ratio', key='ZOOM_LOCK_RATIO', enable_events=True)
+                sg.Checkbox('Lock ratio', key='ZOOM_LOCK_RATIO', default=True, enable_events=True)
             ],
             [
                 sg.Button("Apply", key="ZOOM_APPLY"), 
@@ -43,34 +43,43 @@ class Zoom(ImageOperationInterface):
         window['ZOOM_Y_RES'].update(disabled=values['ZOOM_LOCK_RATIO'])
         return working_image
 
+    # X input occured, if lock_ration == true then update text
     @staticmethod
-    def zoom_out(start_image, factor):
-        old_dim = np.asarray(start_image.shape)
-        new_dim = (factor * old_dim).round().astype(np.int64)
+    def x_input(source_image, working_image, window, values):
+        if values['ZOOM_X_RES'] == '' or not values['ZOOM_X_RES'].isdigit(): # If there is not valid content in the X input to try to interpolate Y, empty Y text box
+            window['ZOOM_Y_RES'].update('')
+        elif values['ZOOM_LOCK_RATIO']:
+            ratio = working_image['image'].shape[0] / working_image['image'].shape[1]
+            window['ZOOM_Y_RES'].update(round(ratio * int(values['ZOOM_X_RES'])))
+        return working_image # Modify ui without changing image
 
-        spacing = 1 / factor
-        
+    @staticmethod
+    def zoom_out(base_image, new_image):
+        old_width = base_image.shape[1]
+        new_width = new_image.shape[1]
 
-        # Get indexes of rows and cols to delete
-        del_rows =  list(filter(lambda num: num % spacing == 0, range(old_dim[0])))
-        del_cols = list(filter(lambda num: num % spacing == 0, range(old_dim[1])))
+        num_cols_to_remove = old_width - new_width
 
-        # print(list(range(old_dim[0])))
-        print(del_rows)
-        
-        # Adjust indices for deletion of prior entries
-        del_cols = [n - i for i, n in enumerate(del_cols)]
-        del_rows = [n - i for i, n in enumerate(del_rows)]
+        removal_spacing = old_width / num_cols_to_remove
 
+        del_cols = { int(removal_spacing * x) for x in range(ceil(num_cols_to_remove))} # Create list of columns to delete. Set to guarantee no duplicates
+        del_cols = sorted(list(del_cols))
 
-        for del_col in del_cols:
-            start_image = np.delete(start_image, del_col, 1)
-        
-        for del_row in del_rows:
-            start_image = np.delete(start_image, del_row, 0)
-            
-        print(start_image.shape)
-        return start_image
+        # TODO: Check if necessary
+        if num_cols_to_remove != len(del_cols):
+            print("MISMATCH IN COLUMNS TO REMOVE: ", num_cols_to_remove, ' vs ', len(del_cols))
+            diff = abs(num_cols_to_remove - len(del_cols))
+
+            if len(del_cols) > num_cols_to_remove:
+                del_cols = del_cols[:-diff]
+
+        del_cols_indices = [n - i for i, n in enumerate(del_cols)] # Adjust indices for deletion of prior entries
+
+        # Delete columns
+        for del_col in del_cols_indices:
+            base_image = np.delete(base_image, del_col, 1)
+
+        return base_image
     
     @staticmethod
     def find_nearest(source, pixel, factor):
@@ -78,70 +87,92 @@ class Zoom(ImageOperationInterface):
         return source[source_mapped_pixel[0]][source_mapped_pixel[1]]   # Retrieve the mapped pixel value
 
     @staticmethod
-    def zoom_nn(start_image, factor):
-        old_dim = np.asarray(start_image.shape)
-        new_dim = (factor * old_dim).round().astype(np.int64)
+    def zoom_nn(base_image, new_image):
+        # old_dim = np.asarray(start_image.shape)
 
-        res = np.zeros(new_dim)
-        res[:] = -1 # Give a nonsense value so we know which values still need to be filled in
+        # res = np.zeros(new_dim)
+        # res[:] = -1 # Give a nonsense value so we know which values still need to be filled in
 
-        if factor > 1.0:
         
-            # i == y, j == x
-            # Transfer real values to new size
-            # Interestingly, while this first set of for loops can be removed and the second one relied on, 
-            # I've found it marginally faster to include this one. Presumably this is because the math for this 
-            # one is less impactful than the math for the next one so doing work here is marginally more efficient
-            # Difference is maybe 0.5 seconds on lena zooming in 200%
-            for i in range(old_dim[0]):
-                for j in range(old_dim[1]):
-                    res[round(factor * i)][round(factor * j)] = start_image[i][j]
+        # # i == y, j == x
+        # # Transfer real values to new size
+        # # Interestingly, while this first set of for loops can be removed and the second one relied on, 
+        # # I've found it marginally faster to include this one. Presumably this is because the math for this 
+        # # one is less impactful than the math for the next one so doing work here is marginally more efficient
+        # # Difference is maybe 0.5 seconds on lena zooming in 200%
+        # for i in range(old_dim[0]):
+        #     for j in range(old_dim[1]):
+        #         res[round(factor * i)][round(factor * j)] = start_image[i][j]
 
-            
+        
 
-            # Fill in gaps
-            for i in range(new_dim[0]):
-                for j in range(new_dim[1]):
-                    if res[i][j] == -1:
-                        res[i][j] = Zoom.find_nearest(start_image, np.array([i,j]), factor)
+        # # Fill in gaps
+        # for i in range(new_dim[0]):
+        #     for j in range(new_dim[1]):
+        #         if res[i][j] == -1:
+        #             res[i][j] = Zoom.find_nearest(start_image, np.array([i,j]), factor)
 
         return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
     @staticmethod
-    def zoom_linear(start_image, factor):
+    def zoom_linear(base_image, new_image):
         return
 
     @staticmethod
-    def zoom_bilinear(start_image, factor):
+    def zoom_bilinear(base_image, new_image):
         return
+
+    @staticmethod
+    def zoom(image, new_width, zoom_type):
+        # Create empty image with new dimensions
+        old_width = image.shape[1]
+        new_image = np.zeros((image.shape[0], new_width))
+        new_image[:] = -1
+
+        if new_width == old_width:
+            return image
+        elif new_width > old_width:
+            print('ZOOMING IN')
+            if zoom_type == 'Nearest Neighbor':
+                return Zoom.zoom_nn(image, new_image)
+            elif zoom_type == 'Linear':
+                return Zoom.zoom_linear(image, new_image)
+            elif zoom_type == 'Bilinear':
+                return Zoom.zoom_bilinear(image, new_image)
+            else:
+                print('ERROR: unknown type of zoom requested')
+                return image
+        else:
+            print('ZOOMING OUT')
+            return Zoom.zoom_out(image, new_image)
+
     
 
 
     @staticmethod
     def zoom_apply(source_image, working_image, window, values):
         print("ZOOM APPLY")
-        print(values)
 
+        new_width = int(values['ZOOM_X_RES'])
+        new_height = int(values['ZOOM_Y_RES'])
 
-        factor = values['ZOOM_SLIDER'] / 100
-        result_image = working_image['image']
-
-        if values['ZOOM_SLIDER'] == 100:
-            return working_image # Requested zoom is 100%, exit
-        elif factor < 1:
-            result_image = Zoom.zoom_out(working_image['image'], factor)
-        else:
-            if values['ZOOM_TYPE'] == 'Nearest Neighbor':
-                result_image = Zoom.zoom_nn(working_image['image'], factor)
-            elif values['ZOOM_TYPE'] == 'Linear':
-                result_image = Zoom.zoom_linear(working_image['image'], factor)
-            elif values['ZOOM_TYPE'] == 'Bilinear':
-                result_image = Zoom.zoom_bilinear(working_image['image'], factor)
-            else:
-                print('ERROR: unknown type of zoom requested')
-
-        working_image['image'] = result_image
+        zoom_type = values['ZOOM_TYPE']
+        image = np.copy(working_image['image']) # Figure out if copy is actually necessary
         
+        # Apply on x direction
+        print('Applying zoom on x ', image.shape)
+        image = Zoom.zoom(image, new_width, zoom_type)
+        print('Applied zoom on x ', image.shape)
+        
+        # Apply on y direction
+        print('Applying zoom on y ', image.shape)
+        image = np.rot90(image)  # Rotate image. Zoom() will apply on x axis only, we'll rotate and then just apply again to change y axis
+        image = Zoom.zoom(image, new_height, zoom_type)
+        image = np.rot90(image, 3)   # Rotate back
+
+        print('Applied zoom on y', image.shape)
+
+        working_image['image'] = image
         return working_image
 
     # Events
@@ -152,6 +183,8 @@ class Zoom(ImageOperationInterface):
             return Zoom.zoom_apply
         elif operation_name == 'ZOOM_LOCK_RATIO':
             return Zoom.lock_ratio
+        elif operation_name == 'ZOOM_X_RES':
+            return Zoom.x_input
         else:
             print("Unknown zoom operation")
         return
