@@ -119,8 +119,65 @@ class Zoom(ImageOperationInterface):
         return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
     @staticmethod
+    def find_flanking_values(row, pos):
+        # In a numpy row, given a position, return the closest value to the left and right that are not -1
+        left = reversed(row[:pos].tolist())
+        left = [ i + 1 if n != -1 else -1 for i, n in enumerate(left)]
+        left = np.array(left)
+        left = np.setdiff1d(left, -1)
+        left = left[0] if len(left) > 0 else 0
+        left = -left
+        
+        right = row[pos + 1:].tolist()
+        right = [ i + 1 if n != -1 else -1 for i, n in enumerate(right)]
+        right = np.array(right)
+        right = np.setdiff1d(right, -1)
+        right = right[0] if len(right) > 0 else 0
+
+        return (left, right)
+
+    @staticmethod
     def zoom_linear(base_image, new_image):
-        return
+        old_dim = np.asarray(base_image.shape)
+        new_dim = np.asarray(new_image.shape)
+
+        old_width = base_image.shape[1]
+        new_width = new_image.shape[1]
+
+        factor = new_width / old_width
+
+        res = np.zeros(new_image.shape)
+        res[:] = -1 # Give a nonsense value so we know which values still need to be filled in
+
+        # i == y, j == x
+        # Transfer real values to new size
+        # Interestingly, while this first set of for loops can be removed and the second one relied on, 
+        # I've found it marginally faster to include this one. Presumably this is because the math for this 
+        # one is less impactful than the math for the next one so doing work here is marginally more efficient
+        # Difference is maybe 0.5 seconds on lena zooming in 200%
+        for y in range(old_dim[0]):
+            for x in range(old_dim[1]):
+                res[y][round(factor * x)] = base_image[y][x]
+
+        
+        # Fill in gaps
+        for y in range(new_dim[0]):
+            for x in range(new_dim[1]):
+                if res[y][x] == -1:
+                    row = res[y]
+                    left, right = Zoom.find_flanking_values(row, x)
+
+                    x0 = x + left
+                    f0 = res[y][x0]
+                    
+                    x1 = x + right
+                    f1 = res[y][x1]
+
+                    f = ( f0 * (x1 - x) + f1 * (x - x0) ) / (x1 - x0)
+                    
+                    res[y][x] = f
+
+        return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
     @staticmethod
     def zoom_bilinear(base_image, new_image):
@@ -139,7 +196,7 @@ class Zoom(ImageOperationInterface):
             print('ZOOMING IN')
             if zoom_type == 'Nearest Neighbor':
                 return Zoom.zoom_nn(image, new_image)
-            elif zoom_type == 'Linear':
+            elif zoom_type == 'Linear' or zoom_type == 'Bilinear':
                 return Zoom.zoom_linear(image, new_image)
             elif zoom_type == 'Bilinear':
                 return Zoom.zoom_bilinear(image, new_image)
@@ -164,17 +221,17 @@ class Zoom(ImageOperationInterface):
         image = np.copy(working_image['image']) # Figure out if copy is actually necessary
         
         # Apply on x direction
-        print('Applying zoom on x ', image.shape)
+        # print('Applying zoom on x ', image.shape)
         image = Zoom.zoom(image, new_width, zoom_type)
-        print('Applied zoom on x ', image.shape)
+        # print('Applied zoom on x ', image.shape)
         
         # Apply on y direction
-        print('Applying zoom on y ', image.shape)
+        # print('Applying zoom on y ', image.shape)
         image = np.rot90(image)  # Rotate image. Zoom() will apply on x axis only, we'll rotate and then just apply again to change y axis
         image = Zoom.zoom(image, new_height, zoom_type)
         image = np.rot90(image, 3)   # Rotate back
 
-        print('Applied zoom on y', image.shape)
+        # print('Applied zoom on y', image.shape)
 
         working_image['image'] = image
         return working_image
