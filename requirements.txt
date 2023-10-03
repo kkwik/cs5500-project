@@ -1,3 +1,3 @@
-pysimplegui
-numpy
-Pillow
+pysimplegui == 4.60.5
+numpy == 1.26.0
+Pillow == 10.0.1
