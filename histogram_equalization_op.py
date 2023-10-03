@@ -24,16 +24,16 @@ class HistEqual(ImageOperationInterface):
         return gui
 
     @staticmethod
-    def hist_equal(data):
+    def hist_equal(img_data, bit_depth):
         
         # Count frequencies
         frequencies = {}
-        index, count = np.unique(data['image'].flatten(), return_counts=True)
+        index, count = np.unique(img_data.flatten(), return_counts=True)
         for rk, f in zip(index, count):
             frequencies[rk] = f
         
         # Calculate PDF
-        total_size = data['image'].size
+        total_size = img_data.size
         pdf = {}
         for rk in frequencies.keys():
             pdf[rk] = frequencies[rk] / total_size
@@ -41,7 +41,7 @@ class HistEqual(ImageOperationInterface):
         # Calculate CDF
         cdf = {}
         for i in range(len(pdf)):
-            cdf[i] = round((2**data['gray_resolution'] - 1) * sum(dict(itertools.islice(pdf.items(), i+1)).values()))
+            cdf[i] = round((2**bit_depth - 1) * sum(dict(itertools.islice(pdf.items(), i+1)).values()))
 
         # Generate HE Map
         he_map = {}
@@ -49,20 +49,20 @@ class HistEqual(ImageOperationInterface):
             he_map[rk] = cf
 
         # Modify Values According to HE Map
-        data['image'] = np.vectorize(he_map.get)(data['image']).astype(np.uint8) 
+        img_data = np.vectorize(he_map.get)(img_data).astype(np.uint8) 
 
-        print("pdf: ", pdf)
-        print("cdf: ", cdf)
-        print("he_map: ", he_map)
-        print("data: ", data['image'])
-        return data
+        # print("pdf: ", pdf)
+        # print("cdf: ", cdf)
+        # print("he_map: ", he_map)
+        # print("data: ", img_data)
+        return img_data
 
 
     # Operations
     @staticmethod
     def global_hist_equal(original, modified, window, values):
-        temp = HistEqual.hist_equal(modified)
-        return temp
+        modified['image'] = HistEqual.hist_equal(modified['image'], modified['gray_resolution'])
+        return modified
 
     # Events
     @staticmethod
