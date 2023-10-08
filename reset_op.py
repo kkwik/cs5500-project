@@ -1,5 +1,6 @@
 import PySimpleGUI as sg
 from ImageOperationInterface import ImageOperationInterface
+import copy
 
 
 class Reset(ImageOperationInterface):
@@ -23,7 +24,7 @@ class Reset(ImageOperationInterface):
     # Operations
     @staticmethod
     def reset(original, modified, window, values):
-        return original
+        return copy.deepcopy(original)
 
     # Events
     @staticmethod

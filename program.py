@@ -7,6 +7,8 @@ import importlib
 import numpy as np
 import os 
 
+import copy
+
 
 # Import operations
 op_files = [ filename for filename in os.listdir() if filename.endswith('_op.py') ] # List containing the names of all suspected image operation files
@@ -96,6 +98,7 @@ while True:
         break
     elif event == "IMAGE_SELECTED":
         # Input Image updated, update display
+        print("IMAGE SELECTED")
 
         filename = values["IMAGE_SELECTED"]
         
@@ -103,7 +106,7 @@ while True:
         input_image = input_image.convert('L') # Convert to 8-bit grayscale
         original_data['image'] = np.asarray(input_image) # Extract pixel values as array
         original_data['gray_resolution'] = 8
-        modified_data = original_data.copy()              # Set initial modified_data
+        modified_data = copy.deepcopy(original_data)              # Set initial modified_data
 
         update_image(window['INPUT_DISPLAY'], original_data['image']) # Update input image display
         update_img_res(window['INPUT_RES'], original_data['image'])
