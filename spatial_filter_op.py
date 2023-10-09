@@ -1,0 +1,143 @@
+import PySimpleGUI as sg
+from ImageOperationInterface import ImageOperationInterface
+import math
+import numpy as np
+from scipy import signal
+import copy
+import matplotlib.pyplot as plt
+
+class SpatialFilter(ImageOperationInterface):
+    @staticmethod
+    def name():
+        return 'Spatial_Filter'
+
+    # Return the UI elements of the operation
+    @staticmethod
+    def get_gui():
+        contents = [
+            [
+                sg.Combo(['Smoothing', 'Median', 'Laplacian', 'High-Boost'], default_value='Smoothing', key=f'{SpatialFilter.name()}_TYPE', enable_events=True)
+            ],
+            [
+                sg.Text('A: ', key=f'{SpatialFilter.name()}_HIGH_BOOST_A_TEXT', visible=False),
+                sg.Input(size=(4, 1), justification='right', key=f'{SpatialFilter.name()}_HIGH_BOOST_A', visible=False)
+            ],
+            [
+                sg.Text('Mask Size: ')
+            ],
+            [
+                sg.Slider(range=(1, 51), default_value=9, size=(20,15), orientation='horizontal', resolution=2, key=f'{SpatialFilter.name()}_SIZE')
+            ],
+            [
+                sg.Button('Apply', key=f'{SpatialFilter.name()}_APPLY'),
+            ]
+        ]
+
+        gui = sg.Column(contents)
+
+        return gui
+
+    # Operations
+    @staticmethod
+    def apply_filter(modified, filt):
+        tmp = copy.deepcopy(modified)
+        source_img = tmp['image']
+        Y, X = source_img.shape # Y, X
+
+        mask_size = filt.shape[0]
+        half_mask = math.floor(mask_size / 2)
+
+
+        result_img = np.empty(source_img.shape)
+
+        print('total size: ', X, ', ', Y)
+        
+        
+
+        tmp['image'] = signal.convolve2d(in1=source_img, in2=filt, mode='same').astype(np.uint8) 
+
+        return tmp
+
+
+
+    @staticmethod
+    def smooth(source_image, mask_size):
+        # Box filter
+        box_filter = np.full((mask_size, mask_size), 1 / (mask_size**2))
+        return SpatialFilter.apply_filter(source_image, box_filter)
+
+    @staticmethod
+    def median(modified, mask_size):
+        source_img = modified['image'] 
+        Y, X = source_img.shape # Y, X
+        result_img = np.empty(source_img.shape)
+
+        half_mask = math.floor(mask_size / 2)
+
+        for y in range(Y):
+            for x in range(X):
+                # Find bounds of the local neighborhood
+                x_start = max(x - half_mask, 0)
+                x_end =   min(x + half_mask + 1, X)
+                y_start = max(y - half_mask, 0)
+                y_end =   min(y + half_mask + 1, Y)
+
+                chunk = source_img[y_start:y_end, x_start:x_end]
+
+                result_img[y,x] = math.floor(np.median(chunk.flatten()))
+
+        modified['image'] = result_img.astype(np.uint8) 
+        return modified
+    
+    @staticmethod
+    def laplacian(source_image, mask_size):
+        lap_filter = np.array([[1,1,1],[1,-8,1],[1,1,1]])
+        return SpatialFilter.apply_filter(source_image, lap_filter)
+
+    @staticmethod
+    def highBoost(source_image, mask_size, A):
+        blurry = SpatialFilter.smooth(source_image, mask_size)
+        mask = source_image['image'] - blurry['image']
+        high_boosted = source_image['image'] + (A * mask)
+        
+        source_image['image'] = high_boosted.astype(np.uint8) 
+
+        
+        return source_image
+
+    @staticmethod
+    def apply(original, modified, window, values):
+        filter_type = values[f'{SpatialFilter.name()}_TYPE']
+        filter_size = int(values[f'{SpatialFilter.name()}_SIZE'])
+
+        if filter_type == 'Smoothing':
+            return SpatialFilter.smooth(modified, filter_size)
+        elif filter_type == 'Median':
+            return SpatialFilter.median(modified, filter_size)
+        elif filter_type == 'Laplacian':
+            return SpatialFilter.laplacian(modified, filter_size)
+        elif filter_type == 'High-Boost':
+            return SpatialFilter.highBoost(modified, filter_size, float(values[f'{SpatialFilter.name()}_HIGH_BOOST_A']))
+        else:
+            print('ERROR: unknown type of filter requested')
+            return modified
+
+    @staticmethod
+    def select_type(source_image, working_image, window, values):
+        window[f'{SpatialFilter.name()}_HIGH_BOOST_A_TEXT'].update(visible=values[f'{SpatialFilter.name()}_TYPE'] == 'High-Boost')
+        window[f'{SpatialFilter.name()}_HIGH_BOOST_A'].update(visible=values[f'{SpatialFilter.name()}_TYPE'] == 'High-Boost')
+        return working_image
+
+    # Events
+    @staticmethod
+    def get_operation(operation_name):
+        if operation_name == f'{SpatialFilter.name()}_TYPE':
+            return SpatialFilter.select_type
+        elif operation_name == f'{SpatialFilter.name()}_APPLY':
+            return SpatialFilter.apply
+        else:
+            print("Unknown spatial filter operation")
+        return
+
+def get_instance():
+    return SpatialFilter()
