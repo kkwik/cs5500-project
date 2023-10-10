@@ -42,20 +42,33 @@ class SpatialFilter(ImageOperationInterface):
     def apply_filter(modified, filt):
         tmp = copy.deepcopy(modified)
         source_img = tmp['image']
+        
+        result_img = np.empty(source_img.shape)
         Y, X = source_img.shape # Y, X
 
         mask_size = filt.shape[0]
         half_mask = math.floor(mask_size / 2)
-
-
-        result_img = np.empty(source_img.shape)
+        
+        p = half_mask
+        source_img = np.pad(source_img, p)
+        
 
         print('total size: ', X, ', ', Y)
         
-        
+    
+        for y in range(Y):
+            for x in range(X):
+                # Find bounds of the local neighborhood
+                x_start = x - half_mask
+                x_end =   x + half_mask + 1
+                y_start = y - half_mask
+                y_end =   y + half_mask + 1
 
-        tmp['image'] = signal.convolve2d(in1=source_img, in2=filt, mode='same').astype(np.uint8) 
+                chunk = source_img[y_start+p:y_end+p, x_start+p:x_end+p]
 
+                result_img[y,x] = np.sum(chunk * filt)
+
+        tmp['image'] = result_img.astype(np.uint8) 
         return tmp
 
 
