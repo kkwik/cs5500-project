@@ -2,9 +2,7 @@ import PySimpleGUI as sg
 from ImageOperationInterface import ImageOperationInterface
 import math
 import numpy as np
-from scipy import signal
 import copy
-import matplotlib.pyplot as plt
 
 class SpatialFilter(ImageOperationInterface):
     @staticmethod
@@ -39,22 +37,17 @@ class SpatialFilter(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def apply_filter(modified, filt):
-        tmp = copy.deepcopy(modified)
-        source_img = tmp['image']
+    def apply_filter(img, filt):
+        source_img = np.copy(img)
+        Y, X = source_img.shape # Y, X
         
         result_img = np.empty(source_img.shape)
-        Y, X = source_img.shape # Y, X
-
+        
         mask_size = filt.shape[0]
         half_mask = math.floor(mask_size / 2)
         
         p = half_mask
         source_img = np.pad(source_img, p)
-        
-
-        print('total size: ', X, ', ', Y)
-        
     
         for y in range(Y):
             for x in range(X):
@@ -67,9 +60,7 @@ class SpatialFilter(ImageOperationInterface):
                 chunk = source_img[y_start+p:y_end+p, x_start+p:x_end+p]
 
                 result_img[y,x] = np.sum(chunk * filt)
-
-        tmp['image'] = result_img.astype(np.uint8) 
-        return tmp
+        return result_img
 
 
 
@@ -77,7 +68,8 @@ class SpatialFilter(ImageOperationInterface):
     def smooth(source_image, mask_size):
         # Box filter
         box_filter = np.full((mask_size, mask_size), 1 / (mask_size**2))
-        return SpatialFilter.apply_filter(source_image, box_filter)
+        source_image['image'] = SpatialFilter.apply_filter(source_image['image'], box_filter).astype(np.uint8) 
+        return source_image
 
     @staticmethod
     def median(modified, mask_size):
@@ -104,14 +96,25 @@ class SpatialFilter(ImageOperationInterface):
     
     @staticmethod
     def laplacian(source_image, mask_size):
-        lap_filter = np.array([[1,1,1],[1,-8,1],[1,1,1]])
-        return SpatialFilter.apply_filter(source_image, lap_filter)
+        # Define Laplacian filter
+        lap_filter = np.array([[0,1,0],[1,-4,1],[0,1,0]])
+        tmp = SpatialFilter.apply_filter(source_image['image'], lap_filter)
+
+        c = -1
+        tmp = source_image['image'] + c * tmp
+
+        # Laplacian potentially creates values outside of the image range, clip it to valid values only
+        tmp = np.clip(tmp, 0, 2**source_image['gray_resolution'] - 1) 
+
+        source_image['image'] = tmp.astype(np.uint8)
+        return source_image
 
     @staticmethod
     def highBoost(source_image, mask_size, A):
-        blurry = SpatialFilter.smooth(source_image, mask_size)
-        mask = source_image['image'] - blurry['image']
-        high_boosted = source_image['image'] + (A * mask)
+        img = source_image['image']
+        blurry = SpatialFilter.smooth(source_image, mask_size)['image']
+        mask = img - blurry
+        high_boosted = img + (A * mask)
         
         source_image['image'] = high_boosted.astype(np.uint8) 
 
