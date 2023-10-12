@@ -37,6 +37,20 @@ class SpatialFilter(ImageOperationInterface):
 
     # Operations
     @staticmethod
+    def scale_values(arr, max_value):
+        negative_adjusted = arr - np.min(arr)
+        scaled_down = negative_adjusted / np.max(negative_adjusted)
+        scaled_up = max_value * scaled_down
+        return scaled_up
+
+    @staticmethod
+    def scale_values_clip_bottom(arr, max_value):
+        scaled_down = arr / np.max(arr)
+        scaled_up = max_value * scaled_down
+        tmp = np.clip(scaled_up, 0, max_value) 
+        return tmp
+
+    @staticmethod
     def apply_filter(img, filt):
         source_img = np.copy(img)
         Y, X = source_img.shape # Y, X
@@ -62,13 +76,20 @@ class SpatialFilter(ImageOperationInterface):
                 result_img[y,x] = np.sum(chunk * filt)
         return result_img
 
-
+    @staticmethod
+    def box_filter(source_image, mask_size):
+        # Box filter
+        data = np.copy(source_image['image'])
+        box_filter = np.full((mask_size, mask_size), 1 / (mask_size**2))
+        tmp = SpatialFilter.apply_filter(data, box_filter)
+        tmp = SpatialFilter.scale_values(tmp, 2**source_image['gray_resolution'] - 1)
+        
+        return tmp
 
     @staticmethod
     def smooth(source_image, mask_size):
         # Box filter
-        box_filter = np.full((mask_size, mask_size), 1 / (mask_size**2))
-        source_image['image'] = SpatialFilter.apply_filter(source_image['image'], box_filter).astype(np.uint8) 
+        source_image['image'] = SpatialFilter.box_filter(source_image, mask_size).astype(np.uint8) 
         return source_image
 
     @staticmethod
@@ -104,7 +125,8 @@ class SpatialFilter(ImageOperationInterface):
         tmp = source_image['image'] + c * tmp
 
         # Laplacian potentially creates values outside of the image range, clip it to valid values only
-        tmp = np.clip(tmp, 0, 2**source_image['gray_resolution'] - 1) 
+        tmp = SpatialFilter.scale_values_clip_bottom(tmp, 2**source_image['gray_resolution'] - 1)
+        print(np.min(tmp), np.max(tmp))
 
         source_image['image'] = tmp.astype(np.uint8)
         return source_image
@@ -112,9 +134,12 @@ class SpatialFilter(ImageOperationInterface):
     @staticmethod
     def highBoost(source_image, mask_size, A):
         img = source_image['image']
-        blurry = SpatialFilter.smooth(source_image, mask_size)['image']
+        blurry = SpatialFilter.box_filter(source_image, mask_size)
         mask = img - blurry
         high_boosted = img + (A * mask)
+
+        high_boosted = SpatialFilter.scale_values(high_boosted, 2**source_image['gray_resolution'] - 1)
+
         
         source_image['image'] = high_boosted.astype(np.uint8) 
 
