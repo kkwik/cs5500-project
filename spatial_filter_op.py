@@ -3,6 +3,7 @@ from ImageOperationInterface import ImageOperationInterface
 import math
 import numpy as np
 import copy
+import numpy.typing as npt
 
 class SpatialFilter(ImageOperationInterface):
     @staticmethod
@@ -37,26 +38,26 @@ class SpatialFilter(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def scale_values(arr, max_value):
+    def scale_values(arr: npt.NDArray, max_value: int) -> npt.NDArray:
         negative_adjusted = arr - np.min(arr)
         scaled_down = negative_adjusted / np.max(negative_adjusted)
         scaled_up = max_value * scaled_down
         return scaled_up
 
     @staticmethod
-    def scale_values_clip_bottom(arr, max_value):
+    def scale_values_clip_bottom(arr: npt.NDArray, max_value: int) -> npt.NDArray:
         scaled_down = arr / np.max(arr)
         scaled_up = max_value * scaled_down
         tmp = np.clip(scaled_up, 0, max_value) 
         return tmp
 
     @staticmethod
-    def convolve_filter(img, filt):
+    def convolve_filter(img: npt.NDArray, filt: npt.NDArray) -> npt.NDArray:
         convolve = lambda chunk: np.sum(chunk * filt)
         return SpatialFilter.apply_function(img, filt.shape[0], convolve)
     
     @staticmethod
-    def apply_function(img, mask_size, func):
+    def apply_function(img: npt.NDArray, mask_size: int, func: callable) -> npt.NDArray:
         source_img = np.copy(img)
         Y, X = source_img.shape # Y, X
         
@@ -81,7 +82,7 @@ class SpatialFilter(ImageOperationInterface):
         return result_img
 
     @staticmethod
-    def box_filter(source_image, mask_size):
+    def box_filter(source_image: dict[str, str], mask_size: int) -> npt.NDArray:
         # Box filter
         data = np.copy(source_image['image'])
         box_filter = np.full((mask_size, mask_size), 1 / (mask_size**2))
@@ -91,13 +92,13 @@ class SpatialFilter(ImageOperationInterface):
         return tmp
 
     @staticmethod
-    def smooth(source_image, mask_size):
+    def smooth(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
         # Box filter
         source_image['image'] = SpatialFilter.box_filter(source_image, mask_size).astype(np.uint8) 
         return source_image
 
     @staticmethod
-    def median(modified, mask_size):
+    def median(modified: dict[str, str], mask_size: int) -> dict[str, str]:
         source_img = modified['image'] 
         Y, X = source_img.shape # Y, X
         result_img = np.empty(source_img.shape)
@@ -120,7 +121,7 @@ class SpatialFilter(ImageOperationInterface):
         return modified
     
     @staticmethod
-    def laplacian(source_image, mask_size):
+    def laplacian(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
         # Define Laplacian filter
         lap_filter = np.array([[0,1,0],[1,-4,1],[0,1,0]])
         tmp = SpatialFilter.convolve_filter(source_image['image'], lap_filter)
@@ -136,7 +137,7 @@ class SpatialFilter(ImageOperationInterface):
         return source_image
 
     @staticmethod
-    def highBoost(source_image, mask_size, A):
+    def highBoost(source_image: dict[str, str], mask_size: int, A: float) -> dict[str, str]:
         img = source_image['image']
         blurry = SpatialFilter.box_filter(source_image, mask_size)
         mask = img - blurry
@@ -151,7 +152,7 @@ class SpatialFilter(ImageOperationInterface):
         return source_image
 
     @staticmethod
-    def apply(original, modified, window, values):
+    def apply(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         filter_type = values[f'{SpatialFilter.name()}_TYPE']
         filter_size = int(values[f'{SpatialFilter.name()}_SIZE'])
 
@@ -168,14 +169,14 @@ class SpatialFilter(ImageOperationInterface):
             return modified
 
     @staticmethod
-    def select_type(source_image, working_image, window, values):
+    def select_type(source_image: dict[str, str], working_image: dict[str, str], window, values) -> dict[str, str]:
         window[f'{SpatialFilter.name()}_HIGH_BOOST_A_TEXT'].update(visible=values[f'{SpatialFilter.name()}_TYPE'] == 'High-Boost')
         window[f'{SpatialFilter.name()}_HIGH_BOOST_A'].update(visible=values[f'{SpatialFilter.name()}_TYPE'] == 'High-Boost')
         return working_image
 
     # Events
     @staticmethod
-    def get_operation(operation_name):
+    def get_operation(operation_name: str) -> callable:
         if operation_name == f'{SpatialFilter.name()}_TYPE':
             return SpatialFilter.select_type
         elif operation_name == f'{SpatialFilter.name()}_APPLY':

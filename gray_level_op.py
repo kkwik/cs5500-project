@@ -26,7 +26,7 @@ class GrayResolution(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def gray_apply(original, modified, window, values):
+    def gray_apply(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         print("GRAY APPLY")
 
         source_gray_res = modified['gray_resolution']
@@ -49,7 +49,7 @@ class GrayResolution(ImageOperationInterface):
 
     # Events
     @staticmethod
-    def get_operation(operation_name):
+    def get_operation(operation_name: str) -> callable:
         
         if operation_name == f'{GrayResolution.name()}_APPLY':
             return GrayResolution.gray_apply

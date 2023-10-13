@@ -2,6 +2,7 @@ import PySimpleGUI as sg
 from ImageOperationInterface import ImageOperationInterface
 import numpy as np
 from math import floor, ceil
+import numpy.typing as npt
 np.set_printoptions(threshold=np.inf)
 
 class Zoom(ImageOperationInterface):
@@ -39,13 +40,13 @@ class Zoom(ImageOperationInterface):
     # Operations
 
     @staticmethod
-    def lock_ratio(source_image, working_image, window, values):
+    def lock_ratio(source_image: dict[str, str], working_image: dict[str, str], window, values) -> dict[str, str]:
         window['ZOOM_Y_RES'].update(disabled=values['ZOOM_LOCK_RATIO'])
         return working_image
 
     # X input occured, if lock_ration == true then update text
     @staticmethod
-    def x_input(source_image, working_image, window, values):
+    def x_input(source_image: dict[str, str], working_image: dict[str, str], window, values) -> dict[str, str]:
         if values['ZOOM_X_RES'] == '' or not values['ZOOM_X_RES'].isdigit(): # If there is not valid content in the X input to try to interpolate Y, empty Y text box
             window['ZOOM_Y_RES'].update('')
         elif values['ZOOM_LOCK_RATIO']:
@@ -54,7 +55,7 @@ class Zoom(ImageOperationInterface):
         return working_image # Modify ui without changing image
 
     @staticmethod
-    def zoom_out(base_image, new_image):
+    def zoom_out(base_image: npt.NDArray, new_image: npt.NDArray) -> npt.NDArray:
         old_width = base_image.shape[1]
         new_width = new_image.shape[1]
 
@@ -82,12 +83,12 @@ class Zoom(ImageOperationInterface):
         return base_image
     
     @staticmethod
-    def find_nearest(source, pixel, factor):
+    def find_nearest(source: npt.NDArray, pixel: npt.NDArray, factor: float) -> int:
         source_mapped_pixel = np.array([pixel[0],np.floor(pixel[1] / factor).astype(int)])  # Map the pixel location in the upscaled image to the closest pixel in the source image
         return source[source_mapped_pixel[0]][source_mapped_pixel[1]]   # Retrieve the mapped pixel value
 
     @staticmethod
-    def zoom_nn(base_image, new_image):
+    def zoom_nn(base_image: npt.NDArray, new_image: npt.NDArray) -> npt.NDArray:
         old_dim = np.asarray(base_image.shape)
         new_dim = np.asarray(new_image.shape)
 
@@ -119,7 +120,7 @@ class Zoom(ImageOperationInterface):
         return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
     @staticmethod
-    def find_flanking_values(row, pos):
+    def find_flanking_values(row: int, pos: int) -> tuple[int]:
         # In a numpy row, given a position, return the closest value to the left and right that are not -1
         left = reversed(row[:pos].tolist())
         left = [ i + 1 if n != -1 else -1 for i, n in enumerate(left)]
@@ -137,7 +138,7 @@ class Zoom(ImageOperationInterface):
         return (left, right)
 
     @staticmethod
-    def zoom_linear(base_image, new_image):
+    def zoom_linear(base_image: npt.NDArray, new_image: npt.NDArray) -> npt.NDArray:
         old_dim = np.asarray(base_image.shape)
         new_dim = np.asarray(new_image.shape)
 
@@ -180,11 +181,11 @@ class Zoom(ImageOperationInterface):
         return res.astype(np.uint8) # Convert to uint8 at the end. Note: if there are any -1's leftover they will be wrapped to 255
 
     @staticmethod
-    def zoom_bilinear(base_image, new_image):
+    def zoom_bilinear(base_image: npt.NDArray, new_image: npt.NDArray):
         return
 
     @staticmethod
-    def zoom(image, new_width, zoom_type):
+    def zoom(image: npt.NDArray, new_width: int, zoom_type: str) -> npt.NDArray:
         # Create empty image with new dimensions
         old_width = image.shape[1]
         new_image = np.zeros((image.shape[0], new_width))
@@ -211,7 +212,7 @@ class Zoom(ImageOperationInterface):
 
 
     @staticmethod
-    def zoom_apply(source_image, working_image, window, values):
+    def zoom_apply(source_image: dict[str, str], working_image: dict[str, str], window, values) -> dict[str, str]:
         print("ZOOM APPLY")
 
         new_width = int(values['ZOOM_X_RES'])
@@ -238,7 +239,7 @@ class Zoom(ImageOperationInterface):
 
     # Events
     @staticmethod
-    def get_operation(operation_name):
+    def get_operation(operation_name: str) -> callable:
         
         if operation_name == f'{Zoom.name()}_APPLY':
             return Zoom.zoom_apply

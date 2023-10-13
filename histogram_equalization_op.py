@@ -43,7 +43,7 @@ class HistEqual(ImageOperationInterface):
         return gui
 
     @staticmethod
-    def hist_equal(img_data, bit_depth):
+    def hist_equal(img_data: npt.NDArray, bit_depth: int) -> npt.NDArray:
         
         # Count frequencies
         frequencies = {}
@@ -80,12 +80,12 @@ class HistEqual(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def global_hist_equal(original, modified, window, values):
+    def global_hist_equal(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         modified['image'] = HistEqual.hist_equal(modified['image'], modified['gray_resolution'])
         return modified
 
     @staticmethod
-    def local_hist_equal(original, modified, window, values):
+    def local_hist_equal(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         mask_size = values[f'{HistEqual.name()}_LOCAL_SIZE']
 
         source_img = modified['image'] # np.array([[0,1,2,3,4],[5,6,7,8,9],[0,1,2,3,4],[5,6,7,8,9],[0,1,2,3,4]])#
@@ -119,7 +119,7 @@ class HistEqual(ImageOperationInterface):
 
     # Events
     @staticmethod
-    def get_operation(operation_name):
+    def get_operation(operation_name: str) -> callable:
         if operation_name == f'{HistEqual.name()}_GLOBAL':
             return HistEqual.global_hist_equal
         elif operation_name == f'{HistEqual.name()}_LOCAL':

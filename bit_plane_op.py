@@ -32,7 +32,7 @@ class BitPlane(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def show_bit_plane(original, modified, window, values):
+    def show_bit_plane(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         plane_to_show = int(values[f'{BitPlane.name()}_PLANE'])
 
         source_img = modified['image'] 
@@ -48,7 +48,7 @@ class BitPlane(ImageOperationInterface):
         return modified
 
     @staticmethod
-    def hide_bit_plane(original, modified, window, values):
+    def hide_bit_plane(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         plane_to_hide = int(values[f'{BitPlane.name()}_PLANE'])
 
         source_img = modified['image'] 
@@ -65,7 +65,7 @@ class BitPlane(ImageOperationInterface):
 
     # Events
     @staticmethod
-    def get_operation(operation_name):
+    def get_operation(operation_name: str) -> callable:
         if operation_name == f'{BitPlane.name()}_SHOW_APPLY':
             return BitPlane.show_bit_plane
         elif operation_name == f'{BitPlane.name()}_HIDE_APPLY':

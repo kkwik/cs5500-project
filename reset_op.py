@@ -23,12 +23,12 @@ class Reset(ImageOperationInterface):
 
     # Operations
     @staticmethod
-    def reset(original, modified, window, values):
+    def reset(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         return copy.deepcopy(original)
 
     # Events
     @staticmethod
-    def get_operation(operation_name):
+    def get_operation(operation_name: str) -> callable:
         if operation_name == f'{Reset.name()}':
             return Reset.reset
         else:
