@@ -51,13 +51,17 @@ class SpatialFilter(ImageOperationInterface):
         return tmp
 
     @staticmethod
-    def apply_filter(img, filt):
+    def convolve_filter(img, filt):
+        convolve = lambda chunk: np.sum(chunk * filt)
+        return SpatialFilter.apply_function(img, filt.shape[0], convolve)
+    
+    @staticmethod
+    def apply_function(img, mask_size, func):
         source_img = np.copy(img)
         Y, X = source_img.shape # Y, X
         
         result_img = np.empty(source_img.shape)
         
-        mask_size = filt.shape[0]
         half_mask = math.floor(mask_size / 2)
         
         p = half_mask
@@ -73,7 +77,7 @@ class SpatialFilter(ImageOperationInterface):
 
                 chunk = source_img[y_start+p:y_end+p, x_start+p:x_end+p]
 
-                result_img[y,x] = np.sum(chunk * filt)
+                result_img[y,x] = func(chunk)
         return result_img
 
     @staticmethod
@@ -81,7 +85,7 @@ class SpatialFilter(ImageOperationInterface):
         # Box filter
         data = np.copy(source_image['image'])
         box_filter = np.full((mask_size, mask_size), 1 / (mask_size**2))
-        tmp = SpatialFilter.apply_filter(data, box_filter)
+        tmp = SpatialFilter.convolve_filter(data, box_filter)
         tmp = SpatialFilter.scale_values(tmp, 2**source_image['gray_resolution'] - 1)
         
         return tmp
@@ -119,7 +123,7 @@ class SpatialFilter(ImageOperationInterface):
     def laplacian(source_image, mask_size):
         # Define Laplacian filter
         lap_filter = np.array([[0,1,0],[1,-4,1],[0,1,0]])
-        tmp = SpatialFilter.apply_filter(source_image['image'], lap_filter)
+        tmp = SpatialFilter.convolve_filter(source_image['image'], lap_filter)
 
         c = -1
         tmp = source_image['image'] + c * tmp
