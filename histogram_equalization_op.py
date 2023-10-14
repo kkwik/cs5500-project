@@ -4,7 +4,7 @@ import numpy as np
 import copy
 import itertools
 import math
-
+import numpy.typing as npt
 
 class HistEqual(ImageOperationInterface):
     @staticmethod
