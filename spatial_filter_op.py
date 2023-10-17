@@ -15,7 +15,7 @@ class SpatialFilter(ImageOperationInterface):
     def get_gui():
         contents = [
             [
-                sg.Combo(['Smoothing', 'Median', 'Minimum', 'Maximum', 'Midpoint', 'Laplacian', 'High-Boost', 'Arithmetic Mean', 'Geometric Mean', 'Harmonic Mean', 'Contraharmonic Mean', 'Alpha-Trimmed Mean'], default_value='Smoothing', key=f'{SpatialFilter.name()}_TYPE', enable_events=True)
+                sg.Combo(['Smoothing', 'Median', 'Maximum', 'Minimum', 'Midpoint', 'Laplacian', 'High-Boost', 'Arithmetic Mean', 'Geometric Mean', 'Harmonic Mean', 'Contraharmonic Mean', 'Alpha-Trimmed Mean'], default_value='Smoothing', key=f'{SpatialFilter.name()}_TYPE', enable_events=True)
             ],
             [
                 sg.Text('A: ', key=f'{SpatialFilter.name()}_INPUT_LABEL', visible=False),
@@ -37,7 +37,8 @@ class SpatialFilter(ImageOperationInterface):
 
         return gui
 
-    # Operations
+    # Helper Functions
+    
     @staticmethod
     def scale_values(arr: npt.NDArray, max_value: int) -> npt.NDArray:
         negative_adjusted = arr - np.min(arr)
@@ -51,12 +52,8 @@ class SpatialFilter(ImageOperationInterface):
         scaled_up = max_value * scaled_down
         tmp = np.clip(scaled_up, 0, max_value) 
         return tmp
-
-    @staticmethod
-    def convolve_filter(img: npt.NDArray, filt: npt.NDArray) -> npt.NDArray:
-        convolve = lambda chunk: np.sum(chunk * filt)
-        return SpatialFilter.apply_function_padded(img, filt.shape[0], convolve)
     
+    # Applies function on chunks of an image. Pad the image so that complete chunks are formed
     @staticmethod
     def apply_function_padded(img: npt.NDArray, mask_size: int, func: callable) -> npt.NDArray:
         source_img = np.copy(img)
@@ -84,7 +81,8 @@ class SpatialFilter(ImageOperationInterface):
                 result_img[y,x] = func(chunk)
                 # print(chunk, ' -> ', result_img[y,x])
         return result_img
-        
+    
+    # Applies function on chunks of an image. Chunks overlapping borders will be cut short of full size
     @staticmethod
     def apply_function(img: npt.NDArray, mask_size: int, func: callable) -> npt.NDArray:
         source_img = img
@@ -107,6 +105,12 @@ class SpatialFilter(ImageOperationInterface):
 
         return result_img
 
+    # Convolve filter on image. Note: pads the image before applying the filter
+    @staticmethod
+    def convolve_filter(img: npt.NDArray, filt: npt.NDArray) -> npt.NDArray:
+        convolve = lambda chunk: np.sum(chunk * filt)
+        return SpatialFilter.apply_function_padded(img, filt.shape[0], convolve)
+
     @staticmethod
     def box_filter(source_image: dict[str, str], mask_size: int) -> npt.NDArray:
         # Box filter
@@ -116,6 +120,8 @@ class SpatialFilter(ImageOperationInterface):
         tmp = SpatialFilter.scale_values(tmp, 2**source_image['gray_resolution'] - 1)
         
         return tmp
+
+    # Filters
 
     @staticmethod
     def smooth(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
@@ -176,9 +182,7 @@ class SpatialFilter(ImageOperationInterface):
 
         high_boosted = SpatialFilter.scale_values(high_boosted, 2**source_image['gray_resolution'] - 1)
 
-        
         source_image['image'] = high_boosted.astype(np.uint8) 
-
         
         return source_image
 
