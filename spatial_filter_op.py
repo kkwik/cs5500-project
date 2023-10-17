@@ -15,17 +15,18 @@ class SpatialFilter(ImageOperationInterface):
     def get_gui():
         contents = [
             [
-                sg.Combo(['Smoothing', 'Median', 'Laplacian', 'High-Boost'], default_value='Smoothing', key=f'{SpatialFilter.name()}_TYPE', enable_events=True)
+                sg.Combo(['Smoothing', 'Median', 'Minimum', 'Maximum', 'Midpoint', 'Laplacian', 'High-Boost', 'Arithmetic Mean', 'Geometric Mean', 'Harmonic Mean', 'Contraharmonic Mean', 'Alpha-Trimmed Mean'], default_value='Smoothing', key=f'{SpatialFilter.name()}_TYPE', enable_events=True)
             ],
             [
-                sg.Text('A: ', key=f'{SpatialFilter.name()}_HIGH_BOOST_A_TEXT', visible=False),
-                sg.Input(size=(4, 1), justification='right', key=f'{SpatialFilter.name()}_HIGH_BOOST_A', visible=False)
+                sg.Text('A: ', key=f'{SpatialFilter.name()}_INPUT_LABEL', visible=False),
+                sg.Input(size=(4, 1), justification='right', key=f'{SpatialFilter.name()}_INPUT_TEXT', visible=False),
+                sg.Slider(range=(0, 8), default_value=1, size=(20,15), orientation='horizontal', key=f'{SpatialFilter.name()}_INPUT_SLIDER', visible=False)
             ],
             [
                 sg.Text('Mask Size: ')
             ],
             [
-                sg.Slider(range=(1, 51), default_value=9, size=(20,15), orientation='horizontal', resolution=2, key=f'{SpatialFilter.name()}_SIZE')
+                sg.Slider(range=(1, 51), default_value=3, size=(20,15), orientation='horizontal', resolution=2, key=f'{SpatialFilter.name()}_SIZE', enable_events=True)
             ],
             [
                 sg.Button('Apply', key=f'{SpatialFilter.name()}_APPLY'),
@@ -54,10 +55,10 @@ class SpatialFilter(ImageOperationInterface):
     @staticmethod
     def convolve_filter(img: npt.NDArray, filt: npt.NDArray) -> npt.NDArray:
         convolve = lambda chunk: np.sum(chunk * filt)
-        return SpatialFilter.apply_function(img, filt.shape[0], convolve)
+        return SpatialFilter.apply_function_padded(img, filt.shape[0], convolve)
     
     @staticmethod
-    def apply_function(img: npt.NDArray, mask_size: int, func: callable) -> npt.NDArray:
+    def apply_function_padded(img: npt.NDArray, mask_size: int, func: callable) -> npt.NDArray:
         source_img = np.copy(img)
         Y, X = source_img.shape # Y, X
         
@@ -78,7 +79,32 @@ class SpatialFilter(ImageOperationInterface):
 
                 chunk = source_img[y_start+p:y_end+p, x_start+p:x_end+p]
 
+                # print(chunk, chunk.size, np.prod(chunk), np.prod(chunk)**(1/chunk.size))
+
                 result_img[y,x] = func(chunk)
+                # print(chunk, ' -> ', result_img[y,x])
+        return result_img
+        
+    @staticmethod
+    def apply_function(img: npt.NDArray, mask_size: int, func: callable) -> npt.NDArray:
+        source_img = img
+        Y, X = source_img.shape # Y, X
+        result_img = np.empty(source_img.shape)
+
+        half_mask = math.floor(mask_size / 2)
+
+        for y in range(Y):
+            for x in range(X):
+                # Find bounds of the local neighborhood
+                x_start = max(x - half_mask, 0)
+                x_end =   min(x + half_mask + 1, X)
+                y_start = max(y - half_mask, 0)
+                y_end =   min(y + half_mask + 1, Y)
+
+                chunk = source_img[y_start:y_end, x_start:x_end]
+
+                result_img[y,x] = func(chunk)
+
         return result_img
 
     @staticmethod
@@ -98,28 +124,33 @@ class SpatialFilter(ImageOperationInterface):
         return source_image
 
     @staticmethod
-    def median(modified: dict[str, str], mask_size: int) -> dict[str, str]:
-        source_img = modified['image'] 
-        Y, X = source_img.shape # Y, X
-        result_img = np.empty(source_img.shape)
+    def median(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
+        img = source_image['image']
+        median = lambda chunk: math.floor(np.median(chunk))
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, median).astype(np.uint8) 
+        return source_image
 
-        half_mask = math.floor(mask_size / 2)
+    @staticmethod
+    def maximum(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
+        img = source_image['image']
+        max_f = lambda chunk: math.floor(np.max(chunk))
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, max_f).astype(np.uint8) 
+        return source_image
 
-        for y in range(Y):
-            for x in range(X):
-                # Find bounds of the local neighborhood
-                x_start = max(x - half_mask, 0)
-                x_end =   min(x + half_mask + 1, X)
-                y_start = max(y - half_mask, 0)
-                y_end =   min(y + half_mask + 1, Y)
-
-                chunk = source_img[y_start:y_end, x_start:x_end]
-
-                result_img[y,x] = math.floor(np.median(chunk.flatten()))
-
-        modified['image'] = result_img.astype(np.uint8) 
-        return modified
+    @staticmethod
+    def minimum(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
+        img = source_image['image']
+        min_f = lambda chunk: math.floor(np.min(chunk))
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, min_f).astype(np.uint8) 
+        return source_image
     
+    @staticmethod
+    def midpoint(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
+        img = source_image['image']
+        mid = lambda chunk: np.add(np.min(chunk), np.max(chunk)) / 2
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, mid).astype(np.uint8) 
+        return source_image
+
     @staticmethod
     def laplacian(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
         # Define Laplacian filter
@@ -152,26 +183,104 @@ class SpatialFilter(ImageOperationInterface):
         return source_image
 
     @staticmethod
+    def arithmetic_mean(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
+        img = source_image['image']
+        arith_mean = lambda chunk: np.sum(chunk) / (chunk.size)
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, arith_mean).astype(np.uint8) 
+        return source_image
+
+    @staticmethod
+    def geometric_mean(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
+        img = source_image['image']
+        geo_mean = lambda chunk: np.prod(chunk)**(1/(chunk.size))
+        tmp = SpatialFilter.apply_function(img, mask_size, geo_mean)
+        source_image['image'] = SpatialFilter.scale_values(tmp, 255).astype(np.uint8) 
+        return source_image
+
+    @staticmethod
+    def harmonic_mean(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
+        img = source_image['image']
+        harm_mean = lambda chunk: (chunk.size) / np.sum(1/chunk)
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, harm_mean).astype(np.uint8) 
+        return source_image
+
+    @staticmethod
+    def contraharmonic_mean(source_image: dict[str, str], mask_size: int, Q: float) -> dict[str, str]:
+        img = source_image['image']
+        contraharm_mean = lambda chunk: np.sum(chunk**(Q+1)) / np.sum(chunk**Q)
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, contraharm_mean).astype(np.uint8) 
+        return source_image
+
+    @staticmethod
+    def alpha_trim_mean(source_image: dict[str, str], mask_size: int, d: int) -> dict[str, str]:
+        img = source_image['image']
+        alpha_trim = lambda chunk: np.sum(chunk) / ((chunk.size**2) - d)
+        source_image['image'] = SpatialFilter.apply_function(img, mask_size, alpha_trim).astype(np.uint8) 
+        return source_image
+
+
+    @staticmethod
     def apply(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
+        input_image = copy.deepcopy(modified)
         filter_type = values[f'{SpatialFilter.name()}_TYPE']
         filter_size = int(values[f'{SpatialFilter.name()}_SIZE'])
 
         if filter_type == 'Smoothing':
-            return SpatialFilter.smooth(modified, filter_size)
+            return SpatialFilter.smooth(input_image, filter_size)
         elif filter_type == 'Median':
-            return SpatialFilter.median(modified, filter_size)
+            return SpatialFilter.median(input_image, filter_size)
         elif filter_type == 'Laplacian':
-            return SpatialFilter.laplacian(modified, filter_size)
+            return SpatialFilter.laplacian(input_image, filter_size)
         elif filter_type == 'High-Boost':
-            return SpatialFilter.highBoost(modified, filter_size, float(values[f'{SpatialFilter.name()}_HIGH_BOOST_A']))
+            return SpatialFilter.highBoost(input_image, filter_size, float(values[f'{SpatialFilter.name()}_INPUT_TEXT']))
+        elif filter_type == 'Arithmetic Mean':
+            return SpatialFilter.arithmetic_mean(input_image, filter_size)
+        elif filter_type == 'Geometric Mean':
+            return SpatialFilter.geometric_mean(input_image, filter_size)
+        elif filter_type == 'Harmonic Mean':
+            return SpatialFilter.harmonic_mean(input_image, filter_size)
+        elif filter_type == 'Contraharmonic Mean':
+            return SpatialFilter.contraharmonic_mean(input_image, filter_size, float(values[f'{SpatialFilter.name()}_INPUT_TEXT']))
+        elif filter_type == 'Alpha-Trimmed Mean':
+            return SpatialFilter.alpha_trim_mean(input_image, filter_size, int(values[f'{SpatialFilter.name()}_INPUT_SLIDER']))
+        elif filter_type == 'Minimum':
+            return SpatialFilter.minimum(input_image, filter_size)
+        elif filter_type == 'Maximum':
+            return SpatialFilter.maximum(input_image, filter_size)
+        elif filter_type == 'Midpoint':
+            return SpatialFilter.midpoint(input_image, filter_size)
         else:
             print('ERROR: unknown type of filter requested')
-            return modified
+            return input_image
 
     @staticmethod
     def select_type(source_image: dict[str, str], working_image: dict[str, str], window, values) -> dict[str, str]:
-        window[f'{SpatialFilter.name()}_HIGH_BOOST_A_TEXT'].update(visible=values[f'{SpatialFilter.name()}_TYPE'] == 'High-Boost')
-        window[f'{SpatialFilter.name()}_HIGH_BOOST_A'].update(visible=values[f'{SpatialFilter.name()}_TYPE'] == 'High-Boost')
+        selected_type = values[f'{SpatialFilter.name()}_TYPE']
+
+        text_input_types = ['High-Boost', 'Contraharmonic Mean']
+        slider_input_types = ['Alpha-Trimmed Mean']
+
+        show_text_input = selected_type in text_input_types
+        show_slider_input = selected_type in slider_input_types
+
+        window[f'{SpatialFilter.name()}_INPUT_LABEL'].update(visible=show_text_input or show_slider_input)
+
+        window[f'{SpatialFilter.name()}_INPUT_TEXT'].update(visible=show_text_input)
+        window[f'{SpatialFilter.name()}_INPUT_SLIDER'].update(visible=show_slider_input)
+
+        if selected_type == 'High-Boost':
+            window[f'{SpatialFilter.name()}_INPUT_LABEL'].update('A: ')
+        elif selected_type == 'Contraharmonic Mean':
+            window[f'{SpatialFilter.name()}_INPUT_LABEL'].update('Q: ')
+        elif selected_type == 'Alpha-Trimmed Mean':
+            window[f'{SpatialFilter.name()}_INPUT_LABEL'].update('d: ')
+        
+        return working_image
+
+    @staticmethod
+    def mask_size_change(source_image: dict[str, str], working_image: dict[str, str], window, values) -> dict[str, str]:
+        mn = int(values[f'{SpatialFilter.name()}_SIZE'])**2
+        window[f'{SpatialFilter.name()}_INPUT_SLIDER'].update(range=(0, mn - 1))
         return working_image
 
     # Events
@@ -179,6 +288,8 @@ class SpatialFilter(ImageOperationInterface):
     def get_operation(operation_name: str) -> callable:
         if operation_name == f'{SpatialFilter.name()}_TYPE':
             return SpatialFilter.select_type
+        elif operation_name == f'{SpatialFilter.name()}_SIZE':
+            return SpatialFilter.mask_size_change
         elif operation_name == f'{SpatialFilter.name()}_APPLY':
             return SpatialFilter.apply
         else:
