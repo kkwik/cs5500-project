@@ -153,7 +153,7 @@ class SpatialFilter(ImageOperationInterface):
     @staticmethod
     def midpoint(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
         img = source_image['image']
-        mid = lambda chunk: np.add(np.min(chunk), np.max(chunk)) / 2
+        mid = lambda chunk: np.add(int(np.min(chunk)), int(np.max(chunk))) / 2
         source_image['image'] = SpatialFilter.apply_function(img, mask_size, mid).astype(np.uint8) 
         return source_image
 
