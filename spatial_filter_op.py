@@ -218,8 +218,14 @@ class SpatialFilter(ImageOperationInterface):
     @staticmethod
     def alpha_trim_mean(source_image: dict[str, str], mask_size: int, d: int) -> dict[str, str]:
         img = source_image['image']
-        alpha_trim = lambda chunk: np.sum(chunk) / ((chunk.size**2) - d)
-        source_image['image'] = SpatialFilter.apply_function(img, mask_size, alpha_trim).astype(np.uint8) 
+        alpha_trim = lambda chunk: np.sum(chunk) / ((chunk.size) - d)
+        tmp = SpatialFilter.apply_function(img, mask_size, alpha_trim)
+        tmp[0] = 0
+        tmp[-1] = 0
+        tmp[:,0] = 0
+        tmp[:,-1] = 0
+        source_image['image'] = SpatialFilter.scale_values(tmp, 255).astype(np.uint8) 
+        print(np.max(source_image['image']))
         return source_image
 
 
