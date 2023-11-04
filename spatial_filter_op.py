@@ -4,6 +4,7 @@ import math
 import numpy as np
 import copy
 import numpy.typing as npt
+from scipy.stats import gmean
 
 class SpatialFilter(ImageOperationInterface):
     @staticmethod
@@ -196,7 +197,7 @@ class SpatialFilter(ImageOperationInterface):
     @staticmethod
     def geometric_mean(source_image: dict[str, str], mask_size: int) -> dict[str, str]:
         img = source_image['image']
-        geo_mean = lambda chunk: np.prod(chunk)**(1/(chunk.size))
+        geo_mean = lambda chunk: np.exp(np.sum(np.log(chunk)) / chunk.size)
         tmp = SpatialFilter.apply_function(img, mask_size, geo_mean)
         source_image['image'] = SpatialFilter.scale_values(tmp, 255).astype(np.uint8) 
         return source_image
@@ -218,8 +219,13 @@ class SpatialFilter(ImageOperationInterface):
     @staticmethod
     def alpha_trim_mean(source_image: dict[str, str], mask_size: int, d: int) -> dict[str, str]:
         img = source_image['image']
-        alpha_trim = lambda chunk: np.sum(chunk) / ((chunk.size**2) - d)
-        source_image['image'] = SpatialFilter.apply_function(img, mask_size, alpha_trim).astype(np.uint8) 
+        alpha_trim = lambda chunk: np.sum(chunk) / ((chunk.size) - d)
+        tmp = SpatialFilter.apply_function(img, mask_size, alpha_trim)
+        tmp[0] = 0
+        tmp[-1] = 0
+        tmp[:,0] = 0
+        tmp[:,-1] = 0
+        source_image['image'] = SpatialFilter.scale_values(tmp, 255).astype(np.uint8)
         return source_image
 
 
