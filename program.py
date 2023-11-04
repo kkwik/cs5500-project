@@ -74,7 +74,7 @@ layout = [
     [
         sg.Column(input_column),
         sg.VSeperator(),
-        sg.Column(operations_column),
+        sg.Column(operations_column, scrollable=True, vertical_scroll_only=True),
         sg.VSeperator(),
         sg.Column(output_column)
     ]
