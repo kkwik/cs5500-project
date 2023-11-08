@@ -1,9 +1,14 @@
 import PySimpleGUI as sg
 from ImageOperationInterface import ImageOperationInterface
 import copy
+import hashlib
+from PIL import Image
+import numpy as np
 
 
 class Watermark(ImageOperationInterface):
+    watermark = np.zeros(1)
+
     @staticmethod
     def name():
         return 'WATERMARK'
@@ -26,6 +31,9 @@ class Watermark(ImageOperationInterface):
 
         return gui
 
+    def getMd5(input: str) -> str:
+        return hashlib.md5(str.encode('utf-8')).hexdigest()
+
     # Operations
     @staticmethod
     def insert(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
@@ -33,8 +41,16 @@ class Watermark(ImageOperationInterface):
     
     @staticmethod
     def watermark_selected(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
-        window[f'{Watermark.name()}_INSERT'].update(disabled=False)
+        window[f'{Watermark.name()}_INSERT'].update(disabled=False) # Enable inserting watermark
+
+        # Load watermark into binary image and store in static variable
+        filename = values["WATERMARK_SELECTED"]
         
+        input_image = Image.open(filename)      # Load image
+        input_image = input_image.convert('1') # Convert to binary mage
+        watermark = np.asarray(input_image) # Extract pixel values as array
+
+
         return copy.deepcopy(modified)
 
     # Events
