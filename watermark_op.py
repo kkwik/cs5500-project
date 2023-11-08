@@ -4,6 +4,7 @@ import copy
 import hashlib
 from PIL import Image
 import numpy as np
+import util
 
 
 class Watermark(ImageOperationInterface):
@@ -48,7 +49,7 @@ class Watermark(ImageOperationInterface):
         
         input_image = Image.open(filename)      # Load image
         input_image = input_image.convert('1') # Convert to binary mage
-        watermark = np.asarray(input_image) # Extract pixel values as array
+        Watermark.watermark = np.asarray(input_image) # Extract pixel values as array
 
 
         return copy.deepcopy(modified)
