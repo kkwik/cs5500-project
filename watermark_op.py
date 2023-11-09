@@ -5,6 +5,7 @@ import hashlib
 from PIL import Image
 import numpy as np
 import util
+import numpy.typing as npt
 
 
 class Watermark(ImageOperationInterface):
@@ -34,6 +35,16 @@ class Watermark(ImageOperationInterface):
 
     def getMd5(input: str) -> str:
         return hashlib.md5(str.encode('utf-8')).hexdigest()
+    
+    # Modified version of: https://stackoverflow.com/questions/61094337/separating-2d-numpy-array-into-nxn-chunks
+    def getImageChunks(data: npt.NDArray, chunk_dims: list[npt.NDArray]):
+        Y = chunk_dims[1]
+        X = chunk_dims[0]
+        A = []
+        for v in np.array_split(data, data.shape[0] // Y, 0):
+            A.extend([*np.array_split(v, data.shape[0] // X, 1)])
+        return A
+    
 
     # Operations
     @staticmethod
