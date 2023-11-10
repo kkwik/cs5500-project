@@ -36,6 +36,23 @@ class Watermark(ImageOperationInterface):
     def getMd5(input: str) -> str:
         return hashlib.md5(str.encode('utf-8')).hexdigest()
     
+    def setLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
+        v = 1 if val else 0
+        ret = np.zeros(arr.shape)
+        for i in range(arr.shape[0]):
+            for j in range(arr.shape[1]):
+                ret[i,j] = arr[i,j] & 0xFE | v
+
+        return ret
+    
+    def getLSB(arr: npt.NDArray) -> npt.NDArray:
+        ret = np.zeros(arr.shape)
+        for i in range(arr.shape[0]):
+            for j in range(arr.shape[1]):
+                ret[i,j] = arr[i,j] & 1
+
+        return ret
+
     # Modified version of: https://stackoverflow.com/questions/61094337/separating-2d-numpy-array-into-nxn-chunks
     def getImageChunks(data: npt.NDArray, chunk_dims: list[npt.NDArray]):
         Y = chunk_dims[1]
@@ -49,6 +66,18 @@ class Watermark(ImageOperationInterface):
     # Operations
     @staticmethod
     def insert(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
+        image_data = modified['image']
+
+        image_blocks = 0 # Handle image in blocks
+
+        for i in range(image_blocks.shape[0]):
+            for j in range(image_blocks.shape[1]):
+                block = image_blocks[i,j]
+                block = Watermark.setLSBTo(block, False)
+                
+
+
+        
         return copy.deepcopy(original)
     
     @staticmethod
