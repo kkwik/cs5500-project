@@ -6,6 +6,7 @@ from PIL import Image
 import numpy as np
 import util
 import numpy.typing as npt
+import re
 
 
 class Watermark(ImageOperationInterface):
@@ -36,17 +37,18 @@ class Watermark(ImageOperationInterface):
     def getMd5(input: str) -> str:
         return hashlib.md5(input.encode('utf-8')).hexdigest()
     
-    def setLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
+    def setArrayLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
+        print('arr')
+        print(arr.dtype)
         v = 1 if val else 0
-        ret = np.zeros(arr.shape)
+        ret = np.zeros(arr.shape, dtype=arr.dtype)
         for i in range(arr.shape[0]):
             for j in range(arr.shape[1]):
                 ret[i,j] = arr[i,j] & 0xFE | v
-
         return ret
     
-    def getLSB(arr: npt.NDArray) -> npt.NDArray:
-        ret = np.zeros(arr.shape)
+    def getArrayLSB(arr: npt.NDArray) -> npt.NDArray:
+        ret = np.zeros(arr.shape, dtype=arr.dtype)
         for i in range(arr.shape[0]):
             for j in range(arr.shape[1]):
                 ret[i,j] = arr[i,j] & 1
@@ -70,13 +72,14 @@ class Watermark(ImageOperationInterface):
     def insert(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         image_data = modified['image']
         watermark = Watermark.watermark
+        watermark_LSB = Watermark.getArrayLSB(watermark)
 
         image_blocks = Watermark.getImageChunks(image_data, watermark.shape) # Handle image in blocks
         
         for i in range(image_blocks.shape[0]):
             for j in range(image_blocks.shape[1]):
                 block = image_blocks[i,j]
-                block = Watermark.setLSBTo(block, False)
+                block = Watermark.setArrayLSBTo(block, False)
 
                 userKey = 1
                 imageId = 1
@@ -86,13 +89,22 @@ class Watermark(ImageOperationInterface):
                 hashInput = f'{userKey},{imageId},{imageWidth},{imageHeight},{blockIndex},{str(block.tolist())}'
                 hash = Watermark.getMd5(hashInput)
 
+                hashBlock = np.array([int(hx, 16) for hx in re.findall('.'*2, hash)])   # Turn hash string into array of byte values
+                hashBlock = np.resize(hashBlock, block.size) # Repeat values to match block size
+                hashBlock = np.array(np.split(hashBlock, watermark.shape[1]))
 
+                Cr = np.bitwise_xor(hashBlock, watermark_LSB)
+                Cr = np.bitwise_and(Cr, 1) # Limit to LSB
+
+                # Insert Cr into LSB of image
+                block = np.bitwise_or(block, Cr)
 
                 
 
 
+
+        return modified
         
-        return copy.deepcopy(original)
     
     @staticmethod
     def watermark_selected(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
