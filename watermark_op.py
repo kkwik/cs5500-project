@@ -34,7 +34,7 @@ class Watermark(ImageOperationInterface):
         return gui
 
     def getMd5(input: str) -> str:
-        return hashlib.md5(str.encode('utf-8')).hexdigest()
+        return hashlib.md5(input.encode('utf-8')).hexdigest()
     
     def setLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
         v = 1 if val else 0
@@ -54,26 +54,40 @@ class Watermark(ImageOperationInterface):
         return ret
 
     # Modified version of: https://stackoverflow.com/questions/61094337/separating-2d-numpy-array-into-nxn-chunks
-    def getImageChunks(data: npt.NDArray, chunk_dims: list[npt.NDArray]):
-        Y = chunk_dims[1]
-        X = chunk_dims[0]
+    def getImageChunks(data: npt.NDArray, chunk_dims: npt.NDArray):
+        Y, X = chunk_dims
+        print(chunk_dims)
         A = []
         for v in np.array_split(data, data.shape[0] // Y, 0):
             A.extend([*np.array_split(v, data.shape[1] // X, 1)])
-        return A
+        A = np.array(A)
+        A = np.split(A, data.shape[1] // X)
+        return np.array(A)
     
 
     # Operations
     @staticmethod
     def insert(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         image_data = modified['image']
+        watermark = Watermark.watermark
 
-        image_blocks = 0 # Handle image in blocks
-
+        image_blocks = Watermark.getImageChunks(image_data, watermark.shape) # Handle image in blocks
+        
         for i in range(image_blocks.shape[0]):
             for j in range(image_blocks.shape[1]):
                 block = image_blocks[i,j]
                 block = Watermark.setLSBTo(block, False)
+
+                userKey = 1
+                imageId = 1
+                imageWidth = image_data.shape[1]
+                imageHeight = image_data.shape[0]
+                blockIndex = i * image_blocks.shape[1] + j
+                hashInput = f'{userKey},{imageId},{imageWidth},{imageHeight},{blockIndex},{str(block.tolist())}'
+                hash = Watermark.getMd5(hashInput)
+
+
+
                 
 
 
