@@ -63,7 +63,7 @@ class Watermark(ImageOperationInterface):
         for v in np.array_split(data, data.shape[0] // Y, 0):
             A.extend([*np.array_split(v, data.shape[1] // X, 1)])
         A = np.array(A)
-        A = np.split(A, data.shape[1] // X)
+        A = np.split(A, data.shape[0] // Y)
         return np.array(A)
     
 
