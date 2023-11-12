@@ -41,6 +41,12 @@ class Watermark(ImageOperationInterface):
         hashInput = f'{userKey},{imageId},{imageShape[1]},{imageShape[0]},{blockIndex},{str(block.tolist())}'
         hash = Watermark.getMd5(hashInput)
         return hash
+
+    def expandBlockHash(hash: str, blockSize: int, watermarkShape: tuple) -> npt.NDArray:
+        hashBlock = np.array([int(hx, 16) for hx in re.findall('.'*2, hash)])   # Turn hash string into array of byte values
+        hashBlock = np.resize(hashBlock, blockSize) # Repeat values to match block size
+        hashBlock = np.array(np.split(hashBlock, watermarkShape[1]))
+        return hashBlock
     
     def setArrayLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
         v = 1 if val else 0
@@ -91,9 +97,7 @@ class Watermark(ImageOperationInterface):
                 blockIndex = i * image_blocks.shape[1] + j
                 hash = Watermark.getBlockHash(userKey, imageId, image_data.shape, blockIndex, block)
 
-                hashBlock = np.array([int(hx, 16) for hx in re.findall('.'*2, hash)])   # Turn hash string into array of byte values
-                hashBlock = np.resize(hashBlock, block.size) # Repeat values to match block size
-                hashBlock = np.array(np.split(hashBlock, watermark.shape[1]))
+                hashBlock = Watermark.expandBlockHash(hash, block.size, watermark.shape)
 
                 Cr = np.bitwise_xor(hashBlock, watermark_LSB)
                 Cr = np.bitwise_and(Cr, 1) # Limit to LSB
