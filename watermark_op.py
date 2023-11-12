@@ -36,6 +36,11 @@ class Watermark(ImageOperationInterface):
 
     def getMd5(input: str) -> str:
         return hashlib.md5(input.encode('utf-8')).hexdigest()
+
+    def getBlockHash(userKey: int, imageId: int, imageShape: tuple, blockIndex: int, block: npt.NDArray) -> str:
+        hashInput = f'{userKey},{imageId},{imageShape[1]},{imageShape[0]},{blockIndex},{str(block.tolist())}'
+        hash = Watermark.getMd5(hashInput)
+        return hash
     
     def setArrayLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
         v = 1 if val else 0
@@ -83,11 +88,8 @@ class Watermark(ImageOperationInterface):
 
                 userKey = 1
                 imageId = 1
-                imageWidth = image_data.shape[1]
-                imageHeight = image_data.shape[0]
                 blockIndex = i * image_blocks.shape[1] + j
-                hashInput = f'{userKey},{imageId},{imageWidth},{imageHeight},{blockIndex},{str(block.tolist())}'
-                hash = Watermark.getMd5(hashInput)
+                hash = Watermark.getBlockHash(userKey, imageId, image_data.shape, blockIndex, block)
 
                 hashBlock = np.array([int(hx, 16) for hx in re.findall('.'*2, hash)])   # Turn hash string into array of byte values
                 hashBlock = np.resize(hashBlock, block.size) # Repeat values to match block size
