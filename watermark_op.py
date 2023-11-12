@@ -38,8 +38,6 @@ class Watermark(ImageOperationInterface):
         return hashlib.md5(input.encode('utf-8')).hexdigest()
     
     def setArrayLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
-        print('arr')
-        print(arr.dtype)
         v = 1 if val else 0
         ret = np.zeros(arr.shape, dtype=arr.dtype)
         for i in range(arr.shape[0]):
@@ -58,7 +56,7 @@ class Watermark(ImageOperationInterface):
     # Modified version of: https://stackoverflow.com/questions/61094337/separating-2d-numpy-array-into-nxn-chunks
     def getImageChunks(data: npt.NDArray, chunk_dims: npt.NDArray) -> npt.NDArray:
         Y, X = chunk_dims
-        print(chunk_dims)
+
         A = []
         for v in np.array_split(data, data.shape[0] // Y, 0):
             A.extend([*np.array_split(v, data.shape[1] // X, 1)])
