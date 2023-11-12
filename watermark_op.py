@@ -56,7 +56,7 @@ class Watermark(ImageOperationInterface):
         return ret
 
     # Modified version of: https://stackoverflow.com/questions/61094337/separating-2d-numpy-array-into-nxn-chunks
-    def getImageChunks(data: npt.NDArray, chunk_dims: npt.NDArray):
+    def getImageChunks(data: npt.NDArray, chunk_dims: npt.NDArray) -> npt.NDArray:
         Y, X = chunk_dims
         print(chunk_dims)
         A = []
@@ -66,6 +66,8 @@ class Watermark(ImageOperationInterface):
         A = np.split(A, data.shape[0] // Y)
         return np.array(A)
     
+    def joinImageChunks(data: npt.NDArray) -> npt.NDArray:
+        return np.hstack(np.hstack(data))
 
     # Operations
     @staticmethod
@@ -75,7 +77,7 @@ class Watermark(ImageOperationInterface):
         watermark_LSB = Watermark.getArrayLSB(watermark)
 
         image_blocks = Watermark.getImageChunks(image_data, watermark.shape) # Handle image in blocks
-        
+
         for i in range(image_blocks.shape[0]):
             for j in range(image_blocks.shape[1]):
                 block = image_blocks[i,j]
@@ -99,9 +101,9 @@ class Watermark(ImageOperationInterface):
                 # Insert Cr into LSB of image
                 block = np.bitwise_or(block, Cr)
 
-                
+                image_blocks[i,j] = block # Store resulting block back
 
-
+        modified['image'] = Watermark.joinImageChunks(image_blocks)
 
         return modified
         
