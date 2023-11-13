@@ -43,19 +43,18 @@ class Watermark(ImageOperationInterface):
         hash = Watermark.getMd5(hashInput)
         return hash
 
-    def hashStringToArray(hash: str) -> npt.NDArray:
-        return np.array([int(hx, 16) for hx in re.findall('.'*2, hash)])   # Turn hash string into array of byte values
+    def hexStringToBitString(hash: str) -> str:
+        return f'{int(hash, 16):0128b}'
 
     def getHashBlock(*args, desiredBlockSize: int, watermarkShape: tuple) -> npt.NDArray:
-        hashString = Watermark.getHash(args)
-        hashBlock = Watermark.hashStringToArray(hashString)
+        hashString = Watermark.hexStringToBitString(Watermark.getHash(args))
         
         # Continually add to hashblock until it exceeds the desired size. Calculate subsequent hashes based on previous hash to avoid repeated values
-        while hashBlock.size < desiredBlockSize:
-            hashString = Watermark.getHash(hashString)
-            hashBlock = np.concatenate((hashBlock, Watermark.hashStringToArray(hashString)))
+        while len(hashString) < desiredBlockSize:
+            hashString += Watermark.hexStringToBitString(Watermark.getHash(hashString))
 
-        hashBlock = np.resize(hashBlock, desiredBlockSize) # Resize to cut off excess values
+        hashString = hashString[:desiredBlockSize] # Resize to cut off excess values
+        hashBlock = np.array(list(hashString), dtype=np.uint8)
         hashBlock = np.array(np.split(hashBlock, watermarkShape[1]))    # Make rows
         return hashBlock
     
