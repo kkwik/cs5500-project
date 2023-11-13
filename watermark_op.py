@@ -26,7 +26,8 @@ class Watermark(ImageOperationInterface):
                 sg.FileBrowse()
             ],
             [
-                sg.Button('Insert', key=f'{Watermark.name()}_INSERT', disabled=True)
+                sg.Button('Insert', key=f'{Watermark.name()}_INSERT', disabled=True),
+                sg.Button('Extract', key=f'{Watermark.name()}_EXTRACT', disabled=True)
             ]
         ]
 
@@ -110,11 +111,40 @@ class Watermark(ImageOperationInterface):
         modified['image'] = Watermark.joinImageChunks(image_blocks)
 
         return modified
+
+    @staticmethod
+    def extract(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
+        image_data = modified['image']
+        image_blocks = Watermark.getImageChunks(image_data, Watermark.watermark.shape) # Handle image in blocks
+
+        for i in range(image_blocks.shape[0]):
+            for j in range(image_blocks.shape[1]):
+                block = image_blocks[i,j]
+                block_lsb = Watermark.getArrayLSB(block)
+
+
+                block_zeroed = Watermark.setArrayLSBTo(block, False)
+
+                userKey = 1
+                imageId = 1
+                blockIndex = i * image_blocks.shape[1] + j
+                hash = Watermark.getBlockHash(userKey, imageId, image_data.shape, blockIndex, block_zeroed)
+
+                hashBlock = Watermark.expandBlockHash(hash, block_zeroed.size, Watermark.watermark.shape) # The watermark size should likely be supplied by the user
+
+                Yr = Watermark.getArrayLSB(np.bitwise_xor(hashBlock, block_lsb))
+
+                image_blocks[i,j] = Yr
+        
+        modified['image'] = Watermark.joinImageChunks(image_blocks)
+
+        return modified
         
     
     @staticmethod
     def watermark_selected(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         window[f'{Watermark.name()}_INSERT'].update(disabled=False) # Enable inserting watermark
+        window[f'{Watermark.name()}_EXTRACT'].update(disabled=False) # Enable extracting watermark
 
         # Load watermark into binary image and store in static variable
         filename = values["WATERMARK_SELECTED"]
@@ -131,6 +161,8 @@ class Watermark(ImageOperationInterface):
     def get_operation(operation_name: str) -> callable:
         if operation_name == f'{Watermark.name()}_INSERT':
             return Watermark.insert
+        elif operation_name == f'{Watermark.name()}_EXTRACT':
+            return Watermark.extract
         elif operation_name == f'{Watermark.name()}_SELECTED':
             return Watermark.watermark_selected
         else:
