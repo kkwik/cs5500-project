@@ -38,15 +38,25 @@ class Watermark(ImageOperationInterface):
     def getMd5(input: str) -> str:
         return hashlib.md5(input.encode('utf-8')).hexdigest()
 
-    def getBlockHash(userKey: int, imageId: int, imageShape: tuple, blockIndex: int, block: npt.NDArray) -> str:
-        hashInput = f'{userKey},{imageId},{imageShape[1]},{imageShape[0]},{blockIndex},{str(block.tolist())}'
+    def getHash(*args) -> str:
+        hashInput = ''.join(map(str, args))
         hash = Watermark.getMd5(hashInput)
         return hash
 
-    def expandBlockHash(hash: str, blockSize: int, watermarkShape: tuple) -> npt.NDArray:
-        hashBlock = np.array([int(hx, 16) for hx in re.findall('.'*2, hash)])   # Turn hash string into array of byte values
-        hashBlock = np.resize(hashBlock, blockSize) # Repeat values to match block size
-        hashBlock = np.array(np.split(hashBlock, watermarkShape[1]))
+    def hashStringToArray(hash: str) -> npt.NDArray:
+        return np.array([int(hx, 16) for hx in re.findall('.'*2, hash)])   # Turn hash string into array of byte values
+
+    def getHashBlock(*args, desiredBlockSize: int, watermarkShape: tuple) -> npt.NDArray:
+        hashString = Watermark.getHash(args)
+        hashBlock = Watermark.hashStringToArray(hashString)
+        
+        # Continually add to hashblock until it exceeds the desired size. Calculate subsequent hashes based on previous hash to avoid repeated values
+        while hashBlock.size < desiredBlockSize:
+            hashString = Watermark.getHash(hashString)
+            hashBlock = np.concatenate((hashBlock, Watermark.hashStringToArray(hashString)))
+
+        hashBlock = np.resize(hashBlock, desiredBlockSize) # Resize to cut off excess values
+        hashBlock = np.array(np.split(hashBlock, watermarkShape[1]))    # Make rows
         return hashBlock
     
     def setArrayLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
@@ -96,9 +106,7 @@ class Watermark(ImageOperationInterface):
                 userKey = 1
                 imageId = 1
                 blockIndex = i * image_blocks.shape[1] + j
-                hash = Watermark.getBlockHash(userKey, imageId, image_data.shape, blockIndex, block)
-
-                hashBlock = Watermark.expandBlockHash(hash, block.size, watermark.shape)
+                hashBlock = Watermark.getHashBlock(userKey, imageId, image_data.shape, blockIndex, block, desiredBlockSize=block.size, watermarkShape=watermark.shape)
 
                 Cr = np.bitwise_xor(hashBlock, watermark_LSB)
                 Cr = np.bitwise_and(Cr, 1) # Limit to LSB
@@ -128,9 +136,7 @@ class Watermark(ImageOperationInterface):
                 userKey = 1
                 imageId = 1
                 blockIndex = i * image_blocks.shape[1] + j
-                hash = Watermark.getBlockHash(userKey, imageId, image_data.shape, blockIndex, block_zeroed)
-
-                hashBlock = Watermark.expandBlockHash(hash, block_zeroed.size, Watermark.watermark.shape) # The watermark size should likely be supplied by the user
+                hashBlock = Watermark.getHashBlock(userKey, imageId, image_data.shape, blockIndex, block_zeroed, desiredBlockSize=block_zeroed.size, watermarkShape=Watermark.watermark.shape)
 
                 Yr = Watermark.getArrayLSB(np.bitwise_xor(hashBlock, block_lsb))
 
