@@ -35,6 +35,10 @@ class Watermark(ImageOperationInterface):
             [
                 sg.Button('Insert', key=f'{Watermark.name()}_INSERT', disabled=True),
                 sg.Button('Extract', key=f'{Watermark.name()}_EXTRACT', disabled=True)
+            ],
+            [
+                sg.Button('Insert Pixel', key=f'{Watermark.name()}_INSERT_PIXEL', disabled=True),
+                sg.Button('Extract Pixel', key=f'{Watermark.name()}_EXTRACT_PIXEL', disabled=True)
             ]
         ]
 
@@ -106,7 +110,7 @@ class Watermark(ImageOperationInterface):
 
                 userKey = values[f'{Watermark.name()}_USER_KEY']
                 imageId = values[f'{Watermark.name()}_IMAGE_ID']
-                blockIndex = i * image_blocks.shape[1] + j
+                blockIndex = i * image_blocks.shape[1] + j  # BLOCKS GO COLUMN THEN ROW 
                 hashBlock = Watermark.getHashBlock(userKey, imageId, image_data.shape, blockIndex, block, desiredBlockSize=block.size, watermarkShape=watermark.shape)
 
                 Cr = np.bitwise_xor(hashBlock, watermark_LSB)
@@ -146,12 +150,76 @@ class Watermark(ImageOperationInterface):
         modified['image'] = Watermark.joinImageChunks(image_blocks)
 
         return modified
+    
+    @staticmethod
+    def insert_pixel(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
+        image_data = modified['image']
+        watermark = Watermark.watermark
+        watermark_LSB = Watermark.getArrayLSB(watermark)
+
+        for i in range(image_data.shape[0]):
+            for j in range(image_data.shape[1]):
+                pixel = image_data[i,j]
+                y_block = i // watermark.shape[0]
+                x_block = j // watermark.shape[1]
+                y_in_watermark = i % watermark.shape[0]
+                x_in_watermark = j % watermark.shape[1]
+                max_y_block = image_data.shape[0] // watermark.shape[0]
+                pixel_zeroed = Watermark.setArrayLSBTo(pixel, False)
+
+                userKey = values[f'{Watermark.name()}_USER_KEY']
+                imageId = values[f'{Watermark.name()}_IMAGE_ID']
+                blockIndex = y_block * max_y_block + x_block
+                hash = int(Watermark.getHash(userKey, imageId, image_data.shape, blockIndex, pixel_zeroed), 16)
+
+                Cr = np.bitwise_xor(hash, watermark_LSB[y_in_watermark,x_in_watermark])
+                Cr = np.bitwise_and(Cr, 1) # Limit to LSB
+
+                # Insert Cr into LSB of image
+                pixel_zeroed = np.bitwise_or(pixel_zeroed, Cr)
+
+                image_data[i,j] = pixel_zeroed # Store resulting block back
+
+        modified['image'] = image_data
+
+        return modified
         
+    @staticmethod
+    def extract_pixel(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
+        image_data = modified['image']
+        watermark = Watermark.watermark
+        watermark_LSB = Watermark.getArrayLSB(watermark)
+
+        for i in range(image_data.shape[0]):
+            for j in range(image_data.shape[1]):
+                pixel = image_data[i,j]
+                y_block = i // watermark.shape[0]
+                x_block = j // watermark.shape[1]
+                y_in_watermark = i % watermark.shape[0]
+                x_in_watermark = j % watermark.shape[1]
+                max_y_block = image_data.shape[0] // watermark.shape[0]
+                pixel_lsb = Watermark.getArrayLSB(pixel)
+                pixel_zeroed = Watermark.setArrayLSBTo(pixel, False)
+
+                userKey = values[f'{Watermark.name()}_USER_KEY']
+                imageId = values[f'{Watermark.name()}_IMAGE_ID']
+                blockIndex = y_block * max_y_block + x_block
+                hash = np.array([int(Watermark.getHash(userKey, imageId, image_data.shape, blockIndex, pixel_zeroed), 16)])
+                # print(type(np.bitwise_xor(hash, pixel_lsb)))
+                Yr = Watermark.getArrayLSB(np.bitwise_xor(hash, pixel_lsb))
+
+                image_data[i,j] = Yr
+
+        modified['image'] = image_data
+
+        return modified
     
     @staticmethod
     def watermark_selected(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         window[f'{Watermark.name()}_INSERT'].update(disabled=False) # Enable inserting watermark
         window[f'{Watermark.name()}_EXTRACT'].update(disabled=False) # Enable extracting watermark
+        window[f'{Watermark.name()}_INSERT_PIXEL'].update(disabled=False) # Enable inserting watermark
+        window[f'{Watermark.name()}_EXTRACT_PIXEL'].update(disabled=False) # Enable extracting watermark
 
         # Load watermark into binary image and store in static variable
         filename = values["WATERMARK_SELECTED"]
@@ -170,6 +238,10 @@ class Watermark(ImageOperationInterface):
             return Watermark.insert
         elif operation_name == f'{Watermark.name()}_EXTRACT':
             return Watermark.extract
+        elif operation_name == f'{Watermark.name()}_INSERT_PIXEL':
+            return Watermark.insert_pixel
+        elif operation_name == f'{Watermark.name()}_EXTRACT_PIXEL':
+            return Watermark.extract_pixel
         elif operation_name == f'{Watermark.name()}_SELECTED':
             return Watermark.watermark_selected
         else:
