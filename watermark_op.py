@@ -21,9 +21,17 @@ class Watermark(ImageOperationInterface):
     def get_gui():
         contents = [
             [
-                sg.Text("Select Watermark Image", key="watermark_image"),
+                sg.Text("Select Watermark Image"),
                 sg.In(size=(30,1), enable_events=True, key="WATERMARK_SELECTED"),
                 sg.FileBrowse()
+            ],
+            [
+                sg.Text('Image ID: '),
+                sg.Input(justification='right', key=f'{Watermark.name()}_IMAGE_ID'),
+            ],
+            [
+                sg.Text('User Key: '),
+                sg.Input(justification='right', key=f'{Watermark.name()}_USER_KEY')
             ],
             [
                 sg.Button('Insert', key=f'{Watermark.name()}_INSERT', disabled=True),
@@ -102,8 +110,8 @@ class Watermark(ImageOperationInterface):
                 block = image_blocks[i,j]
                 block = Watermark.setArrayLSBTo(block, False)
 
-                userKey = 1
-                imageId = 1
+                userKey = values[f'{Watermark.name()}_USER_KEY']
+                imageId = values[f'{Watermark.name()}_IMAGE_ID']
                 blockIndex = i * image_blocks.shape[1] + j
                 hashBlock = Watermark.getHashBlock(userKey, imageId, image_data.shape, blockIndex, block, desiredBlockSize=block.size, watermarkShape=watermark.shape)
 
@@ -132,8 +140,8 @@ class Watermark(ImageOperationInterface):
 
                 block_zeroed = Watermark.setArrayLSBTo(block, False)
 
-                userKey = 1
-                imageId = 1
+                userKey = values[f'{Watermark.name()}_USER_KEY']
+                imageId = values[f'{Watermark.name()}_IMAGE_ID']
                 blockIndex = i * image_blocks.shape[1] + j
                 hashBlock = Watermark.getHashBlock(userKey, imageId, image_data.shape, blockIndex, block_zeroed, desiredBlockSize=block_zeroed.size, watermarkShape=Watermark.watermark.shape)
 
