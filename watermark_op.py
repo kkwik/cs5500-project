@@ -6,7 +6,6 @@ from PIL import Image
 import numpy as np
 import util
 import numpy.typing as npt
-import re
 
 
 class Watermark(ImageOperationInterface):
@@ -69,17 +68,12 @@ class Watermark(ImageOperationInterface):
     def setArrayLSBTo(arr: npt.NDArray, val: bool) -> npt.NDArray:
         v = 1 if val else 0
         ret = np.zeros(arr.shape, dtype=arr.dtype)
-        for i in range(arr.shape[0]):
-            for j in range(arr.shape[1]):
-                ret[i,j] = arr[i,j] & 0xFE | v
+        ret = np.bitwise_and(arr, np.bitwise_or(0XFE, v))
         return ret
     
     def getArrayLSB(arr: npt.NDArray) -> npt.NDArray:
         ret = np.zeros(arr.shape, dtype=arr.dtype)
-        for i in range(arr.shape[0]):
-            for j in range(arr.shape[1]):
-                ret[i,j] = arr[i,j] & 1
-
+        ret = np.bitwise_and(arr, 1)
         return ret
 
     # Modified version of: https://stackoverflow.com/questions/61094337/separating-2d-numpy-array-into-nxn-chunks
