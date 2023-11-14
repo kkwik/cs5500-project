@@ -4,7 +4,6 @@ import math
 import numpy as np
 import copy
 import numpy.typing as npt
-from scipy.stats import gmean
 
 class SpatialFilter(ImageOperationInterface):
     @staticmethod
