@@ -102,14 +102,14 @@ class Watermark(ImageOperationInterface):
         watermark_LSB = Watermark.getArrayLSB(watermark)
 
         image_blocks = Watermark.getImageChunks(image_data, watermark.shape) # Handle image in blocks
-
+        userKey = values[f'{Watermark.name()}_USER_KEY']
+        imageId = values[f'{Watermark.name()}_IMAGE_ID']
+        
         for i in range(image_blocks.shape[0]):
             for j in range(image_blocks.shape[1]):
                 block = image_blocks[i,j]
                 block = Watermark.setArrayLSBTo(block, False)
 
-                userKey = values[f'{Watermark.name()}_USER_KEY']
-                imageId = values[f'{Watermark.name()}_IMAGE_ID']
                 blockIndex = i * image_blocks.shape[1] + j  # BLOCKS GO COLUMN THEN ROW 
                 hashBlock = Watermark.getHashBlock(userKey, imageId, image_data.shape, blockIndex, block, desiredBlockSize=block.size, watermarkShape=watermark.shape)
 
@@ -130,6 +130,9 @@ class Watermark(ImageOperationInterface):
         image_data = modified['image']
         image_blocks = Watermark.getImageChunks(image_data, Watermark.watermark.shape) # Handle image in blocks
 
+        userKey = values[f'{Watermark.name()}_USER_KEY']
+        imageId = values[f'{Watermark.name()}_IMAGE_ID']
+        
         for i in range(image_blocks.shape[0]):
             for j in range(image_blocks.shape[1]):
                 block = image_blocks[i,j]
@@ -138,8 +141,6 @@ class Watermark(ImageOperationInterface):
 
                 block_zeroed = Watermark.setArrayLSBTo(block, False)
 
-                userKey = values[f'{Watermark.name()}_USER_KEY']
-                imageId = values[f'{Watermark.name()}_IMAGE_ID']
                 blockIndex = i * image_blocks.shape[1] + j
                 hashBlock = Watermark.getHashBlock(userKey, imageId, image_data.shape, blockIndex, block_zeroed, desiredBlockSize=block_zeroed.size, watermarkShape=Watermark.watermark.shape)
 
@@ -157,24 +158,21 @@ class Watermark(ImageOperationInterface):
         watermark = Watermark.watermark
         watermark_LSB = Watermark.getArrayLSB(watermark)
 
+        userKey = values[f'{Watermark.name()}_USER_KEY']
+        imageId = values[f'{Watermark.name()}_IMAGE_ID']
+        
         for i in range(image_data.shape[0]):
             for j in range(image_data.shape[1]):
-                pixel = image_data[i,j]
-                y_block = i // watermark.shape[0]
-                x_block = j // watermark.shape[1]
+                pixel = np.array(image_data[i,j])
                 y_in_watermark = i % watermark.shape[0]
                 x_in_watermark = j % watermark.shape[1]
-                max_y_block = image_data.shape[0] // watermark.shape[0]
                 pixel_zeroed = Watermark.setArrayLSBTo(pixel, False)
 
-                userKey = values[f'{Watermark.name()}_USER_KEY']
-                imageId = values[f'{Watermark.name()}_IMAGE_ID']
-                blockIndex = y_block * max_y_block + x_block
-                hash = int(Watermark.getHash(userKey, imageId, image_data.shape, blockIndex, pixel_zeroed), 16)
+                hash = Watermark.getHashBlock(userKey, imageId, image_data.shape, i, j, pixel_zeroed, desiredBlockSize=pixel_zeroed.size, watermarkShape=(1,1))
 
                 Cr = np.bitwise_xor(hash, watermark_LSB[y_in_watermark,x_in_watermark])
                 Cr = np.bitwise_and(Cr, 1) # Limit to LSB
-
+                
                 # Insert Cr into LSB of image
                 pixel_zeroed = np.bitwise_or(pixel_zeroed, Cr)
 
@@ -187,28 +185,19 @@ class Watermark(ImageOperationInterface):
     @staticmethod
     def extract_pixel(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
         image_data = modified['image']
-        watermark = Watermark.watermark
-        watermark_LSB = Watermark.getArrayLSB(watermark)
+        userKey = values[f'{Watermark.name()}_USER_KEY']
+        imageId = values[f'{Watermark.name()}_IMAGE_ID']
 
         for i in range(image_data.shape[0]):
             for j in range(image_data.shape[1]):
-                pixel = image_data[i,j]
-                y_block = i // watermark.shape[0]
-                x_block = j // watermark.shape[1]
-                y_in_watermark = i % watermark.shape[0]
-                x_in_watermark = j % watermark.shape[1]
-                max_y_block = image_data.shape[0] // watermark.shape[0]
+                pixel = np.array(image_data[i,j])
                 pixel_lsb = Watermark.getArrayLSB(pixel)
                 pixel_zeroed = Watermark.setArrayLSBTo(pixel, False)
 
-                userKey = values[f'{Watermark.name()}_USER_KEY']
-                imageId = values[f'{Watermark.name()}_IMAGE_ID']
-                blockIndex = y_block * max_y_block + x_block
-                hash = np.array([int(Watermark.getHash(userKey, imageId, image_data.shape, blockIndex, pixel_zeroed), 16)])
-                # print(type(np.bitwise_xor(hash, pixel_lsb)))
+                hash = Watermark.getHashBlock(userKey, imageId, image_data.shape, i, j, pixel_zeroed, desiredBlockSize=pixel_zeroed.size, watermarkShape=(1,1))
                 Yr = Watermark.getArrayLSB(np.bitwise_xor(hash, pixel_lsb))
 
-                image_data[i,j] = Yr
+                image_data[i,j] = Yr    
 
         modified['image'] = image_data
 
