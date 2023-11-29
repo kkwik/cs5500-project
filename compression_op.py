@@ -3,6 +3,7 @@ from ImageOperationInterface import ImageOperationInterface
 import numpy as np
 import numpy.typing as npt
 from tqdm import tqdm
+import pickle
 
 
 class Compression(ImageOperationInterface):
@@ -36,8 +37,10 @@ class Compression(ImageOperationInterface):
     # Compress
     ###
     @staticmethod
-    def save_to_file(data: bytes, filename: str):
-        with open(filename, 'wb') as file:
+    def save_to_file(data: bytes, filename: str, append: bool = False):
+        mode = 'b'
+        mode += 'a' if append else 'w'
+        with open(filename, mode=mode) as file:
             file.write(data)
 
     @staticmethod
@@ -134,8 +137,111 @@ class Compression(ImageOperationInterface):
 
         return modified
 
+    # Recursively traverse binary tree and return dictionary mapping of value -> bitstring
     @staticmethod
-    def compress_huffman(modified: dict[str, str]):
+    def recursive(input_tuple, bit_string: str) -> dict:
+        if type(input_tuple) is not tuple:
+            base_case = {}
+            base_case[input_tuple] = bit_string
+
+            return base_case
+        
+        left = input_tuple[0]
+        right = input_tuple[1]
+
+        result = {}
+        result.update(Compression.recursive(left, bit_string + '0'))
+        result.update(Compression.recursive(right, bit_string + '1'))
+
+        return result
+
+    @staticmethod
+    def compress_huffman(modified: dict[str, str], filename):
+
+        # File format
+        # Byte 0: 2 - compression type indicator
+        # 2 bytes for Codes size: 
+        # Huffman Codes:
+        # Data:
+        
+        image_data = modified['image']
+
+        output = []
+        output.append(2) # First byte indicates type of compression. 1 is bitplane RLE
+        Compression.save_to_file(bytes(output), filename) # Save compression type
+
+        ######################
+        # Create Huffman Codes
+        ######################
+        probs = dict(zip(*np.unique(image_data, return_counts=True)))
+        line_end = {'eol': image_data.shape[0] - 1}
+        probs.update(line_end)
+
+        # Calculate binary tree
+        while len(probs) > 1:
+            counts = sorted(probs.values())
+            least_common_freq = counts[0]
+            least_common_key = list(probs.keys())[list(probs.values()).index(least_common_freq)]
+            least_common = probs[least_common_key]
+
+            probs.pop(least_common_key)
+            counts = counts[1:]
+
+            second_least_common_freq = counts[0]
+            second_least_common_key = list(probs.keys())[list(probs.values()).index(second_least_common_freq)]
+            second_least_common = probs[second_least_common_key]
+
+            probs.pop(second_least_common_key)
+            counts = counts[1:]
+
+            probs[(least_common_key, second_least_common_key)] = least_common_freq + second_least_common_freq
+
+        # Tabulate huffman codes based on tree
+        tree = list(probs.keys())[0]
+        codes = Compression.recursive(tree, '')
+        encoded_codes = pickle.dumps(codes)
+
+        code_size = len(encoded_codes)
+
+        # Sanity check on size of huffman code
+        if code_size > 2*16:
+            print(f'WARNING: Huffman code table size of {code_size} exceeds 2 byte limit. Failed to compress image')
+            return modified
+
+        binary_code_size = '{0:b}'.format(code_size)
+        binary_code_size = ((len(binary_code_size) % 8) * '0') + binary_code_size # Left pad
+        binary_code_size = [binary_code_size[i:i+8] for i in range(int(len(binary_code_size)/8))] # Split into bytes
+        binary_code_size = [int(i, 2) for i in binary_code_size] # Interpret 8 bit strings as ints
+
+        Compression.save_to_file(bytes(binary_code_size), filename, append=True) # Save codes size as 2 bytes
+
+        # Save Huffman codes to file
+        Compression.save_to_file(encoded_codes, filename, append=True)
+
+        #####################
+        # Encode pixel values
+        #####################
+        output = ''
+        
+        for y in range(image_data.shape[0]):
+            for x in range(image_data.shape[1]):
+                pixel = image_data[y, x]
+
+                # If this is the first pixel of a new line, add eol signifier
+                if x == 0:
+                    output += codes['eol']
+
+                output += codes[pixel]
+        
+        output += ((len(output) % 8) * '0') # Pad right side of data to 8 byte boundary
+        output = [output[i:i+8] for i in range(int(len(output)/8))] # Split string on 8 bit boundaries
+        output = [int(i, 2) for i in output] # Interpret 8 bit strings as ints
+
+
+
+        encoded_data = bytes(output)
+
+        Compression.save_to_file(encoded_data, filename, append=True)
 
         return modified
 
