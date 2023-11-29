@@ -43,12 +43,46 @@ class Compression(ImageOperationInterface):
     @staticmethod
     def compress_grayscale(modified: dict[str, str]):
         image_data = modified['image']
+        bit_depth = modified['gray_resolution']
         output = []
-        last_value = -1
+        output.append(0)
 
-        # for i in range(image_data.shape[0]):
-        #     for j in range(image_data.shape[1]):
-        #         output
+        # 00: Line end
+        # 01: Image end
+
+        prev_pixel_val = -1
+        count = 0
+
+        for y in range(plane.shape[0]):
+            for x in range(plane.shape[1]):
+                pixel = plane[y, x]
+
+                if x == 0:
+                    prev_pixel_val = pixel
+
+                if pixel == prev_pixel_val:
+                    if count == 255:
+                        output.append(count)
+                        output.append(pixel)
+                        count = 0
+                    count += 1
+
+                else:
+                    output.append(count)
+                    output.append(prev_pixel_val)
+                    count = 0
+                    count += 1
+                    prev_pixel_val = pixel
+            output.append(count)
+            output.append(prev_pixel_val)
+            count = 0
+            output.append(0)
+            output.append(0)
+        output.append(0)
+        output.append(1)
+
+        Compression.save_to_file(bytes(output), filename)
+
         return modified
 
     @staticmethod
@@ -65,18 +99,18 @@ class Compression(ImageOperationInterface):
         for d in range(bit_depth):
             plane = np.bitwise_and(np.right_shift(image_data, d), 1)
 
-            prev = 1
+            prev_pixel_val = 1
             count = 0
             for y in range(plane.shape[0]):
                 for x in range(plane.shape[1]):
                     pixel = plane[y, x]
 
                     # Handle case where start is a 0
-                    if x == 0 and pixel != prev:
+                    if x == 0 and pixel != prev_pixel_val:
                         output.append(0)
-                        prev = pixel
+                        prev_pixel_val = pixel
 
-                    if pixel == prev:
+                    if pixel == prev_pixel_val:
                         if count == 255:
                             output.append(count)
                             output.append(0)
@@ -87,10 +121,10 @@ class Compression(ImageOperationInterface):
                         output.append(count)
                         count = 0
                         count += 1
-                        prev = pixel
+                        prev_pixel_val = pixel
                 output.append(count)
                 count = 0
-                prev = 1
+                prev_pixel_val = 1
                 output.append(0)
                 output.append(0)
                 output.append(0)
