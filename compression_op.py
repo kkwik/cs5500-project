@@ -41,7 +41,7 @@ class Compression(ImageOperationInterface):
             file.write(data)
 
     @staticmethod
-    def compress_grayscale(modified: dict[str, str]):
+    def compress_grayscale(modified: dict[str, str], filename):
         image_data = modified['image']
 
         output = []
@@ -53,9 +53,9 @@ class Compression(ImageOperationInterface):
         prev_pixel_val = -1
         count = 0
 
-        for y in range(plane.shape[0]):
-            for x in range(plane.shape[1]):
-                pixel = plane[y, x]
+        for y in range(image_data.shape[0]):
+            for x in range(image_data.shape[1]):
+                pixel = image_data[y, x]
 
                 if x == 0:
                     prev_pixel_val = pixel
@@ -157,7 +157,36 @@ class Compression(ImageOperationInterface):
     ###
     @staticmethod
     def decompress_grayscale(data: list[int]) -> npt.NDArray:
-        return
+        output = 0
+        row = []
+        row_count = 0
+
+        entries_left = len(data)
+        with tqdm(total=entries_left) as pbar:
+            while len(data) > 0:
+                if data[0] == 0 and data[1] == 0:
+                    # new line
+                    row = np.array(row)
+                    if row_count == 0:
+                        output = row
+                    else:
+                        output = np.vstack([output, row])
+                    
+                    row = []
+                    row_count += 1
+
+                    data = data[2:]
+                else:
+                    count = data[0]
+                    pixel_value = data[1]
+                    row.extend(count * [pixel_value])
+                    data = data[2:]
+
+                entries_removed = entries_left - len(data)
+                pbar.update(entries_removed)
+                entries_left -= entries_removed
+        
+        return output.astype(np.uint8) 
 
     @staticmethod
     def decompress_bitplane(data: list[int]) -> npt.NDArray:
@@ -167,7 +196,7 @@ class Compression(ImageOperationInterface):
         plane_count = 0
         row = []
         row_count = 0
-        print(data)
+
         entries_left = len(data)
         with tqdm(total=entries_left) as pbar:
             while len(data) > 0:
@@ -206,7 +235,7 @@ class Compression(ImageOperationInterface):
                 entries_removed = entries_left - len(data)
                 pbar.update(entries_removed)
                 entries_left -= entries_removed
-        print(output)
+
         return output.astype(np.uint8) 
 
     @staticmethod
