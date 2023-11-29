@@ -43,12 +43,12 @@ class Compression(ImageOperationInterface):
     @staticmethod
     def compress_grayscale(modified: dict[str, str]):
         image_data = modified['image']
-        bit_depth = modified['gray_resolution']
+
         output = []
-        output.append(0)
+        output.append(0)    # First byte indicates type of compression. 0 is grayscale RLE
 
         # 00: Line end
-        # 01: Image end
+        end_of_line = [0, 0]
 
         prev_pixel_val = -1
         count = 0
@@ -61,6 +61,7 @@ class Compression(ImageOperationInterface):
                     prev_pixel_val = pixel
 
                 if pixel == prev_pixel_val:
+                    # Handle case where count exceeds byte size
                     if count == 255:
                         output.append(count)
                         output.append(pixel)
@@ -76,10 +77,7 @@ class Compression(ImageOperationInterface):
             output.append(count)
             output.append(prev_pixel_val)
             count = 0
-            output.append(0)
-            output.append(0)
-        output.append(0)
-        output.append(1)
+            output.extend(end_of_line)
 
         Compression.save_to_file(bytes(output), filename)
 
@@ -90,10 +88,13 @@ class Compression(ImageOperationInterface):
         image_data = modified['image']
         bit_depth = modified['gray_resolution']
         output = []
-        output.append(1) # First byte will indicate bitplane encoding
+        output.append(1) # First byte indicates type of compression. 1 is bitplane RLE
+
+        # Signals
         # 000: End of line
+        end_of_line = [0, 0, 0]
         # 001: End of plane
-        # 002: End image
+        end_of_plane = [0, 0, 1]
 
 
         for d in range(bit_depth):
@@ -111,6 +112,7 @@ class Compression(ImageOperationInterface):
                         prev_pixel_val = pixel
 
                     if pixel == prev_pixel_val:
+                        # Handle case where count exceeds byte size
                         if count == 255:
                             output.append(count)
                             output.append(0)
@@ -125,12 +127,8 @@ class Compression(ImageOperationInterface):
                 output.append(count)
                 count = 0
                 prev_pixel_val = 1
-                output.append(0)
-                output.append(0)
-                output.append(0)
-            output.append(0)
-            output.append(0)
-            output.append(1)
+                output.extend(end_of_line)
+            output.extend(end_of_plane)
 
         Compression.save_to_file(bytes(output), filename)
 
