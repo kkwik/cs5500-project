@@ -204,13 +204,13 @@ class Compression(ImageOperationInterface):
         code_size = len(encoded_codes)
 
         # Sanity check on size of huffman code
-        if code_size > 2*16:
+        if code_size > 2**16:
             print(f'WARNING: Huffman code table size of {code_size} exceeds 2 byte limit. Failed to compress image')
             return modified
 
         binary_code_size = '{0:b}'.format(code_size)
-        binary_code_size = ((len(binary_code_size) % 8) * '0') + binary_code_size # Left pad
-        binary_code_size = [binary_code_size[i:i+8] for i in range(int(len(binary_code_size)/8))] # Split into bytes
+        binary_code_size = ((8 - (len(binary_code_size) % 8)) * '0') + binary_code_size # Left pad
+        binary_code_size = [binary_code_size[i*8:i*8+8] for i in range(int(len(binary_code_size)/8))] # Split into bytes
         binary_code_size = [int(i, 2) for i in binary_code_size] # Interpret 8 bit strings as ints
 
         Compression.save_to_file(bytes(binary_code_size), filename, append=True) # Save codes size as 2 bytes
@@ -233,8 +233,8 @@ class Compression(ImageOperationInterface):
 
                 output += codes[pixel]
         
-        output += ((len(output) % 8) * '0') # Pad right side of data to 8 byte boundary
-        output = [output[i:i+8] for i in range(int(len(output)/8))] # Split string on 8 bit boundaries
+        output += ((8 - (len(output) % 8)) * '0') # Pad right side of data to 8 byte boundary
+        output = [output[i*8:i*8+8] for i in range(int(len(output)/8))] # Split string on 8 bit boundaries
         output = [int(i, 2) for i in output] # Interpret 8 bit strings as ints
 
 
@@ -346,7 +346,23 @@ class Compression(ImageOperationInterface):
 
     @staticmethod
     def decompress_huffman(data: list[int]) -> npt.NDArray:
-        return
+        print(data)
+        huffman_code_size = data[0:2]
+        data = data[2:]
+        huffman_code_size = ['{0:b}'.format(b) for b in huffman_code_size]  # Convert ints to bit strings
+        huffman_code_size = [((8 - (len(b) % 8)) * '0') + b for b in huffman_code_size] # Zero left pad bit strings
+        huffman_code_size = ''.join(huffman_code_size)  # Concat bit strings
+        huffman_code_size = int(huffman_code_size, 2)   # Interpret bit string as int
+
+        huffman_codes = data[:huffman_code_size]
+        data = data[:huffman_code_size]
+        codes = pickle.loads(bytes(huffman_codes))
+
+
+        # while len(data) > 0:
+        #     pass
+
+        return np.array([1])
 
     @staticmethod
     def read_compressed_data(data: list[int]) -> npt.NDArray:
