@@ -33,6 +33,18 @@ class Compression(ImageOperationInterface):
         return gui
 
     # Operations
+    @staticmethod
+    def intToBinaryString(num: int) -> str:
+        return '{0:b}'.format(num)
+
+    @staticmethod
+    def leftPadBinaryString(bits: str) -> str:
+        return ((8 - (len(bits) % 8)) * '0') + bits if len(bits) % 8 != 0 else bits
+
+    @staticmethod
+    def splitBitStringOnByte(bits: str) -> list[str]:
+        return [bits[i*8:i*8+8] for i in range(int(len(bits)/8))]
+
     ###
     # Compress
     ###
@@ -206,7 +218,7 @@ class Compression(ImageOperationInterface):
         #####################
         # Encode pixel values
         #####################
-        output = ''
+        data = ''
         
         for y in range(image_data.shape[0]):
             for x in range(image_data.shape[1]):
@@ -214,16 +226,38 @@ class Compression(ImageOperationInterface):
 
                 # If this is the first pixel of a new line, add eol signifier
                 if x == 0 and y != 0:
-                    output += codes['eol']
+                    data += codes['eol']
 
-                output += codes[pixel]
-        output += codes['eol']
+                data += codes[pixel]
+        data += codes['eol']
         # print(output)
 
         codes = {v: k for k, v in codes.items()} # During decompression this mapping needs to be reversed, so we do it during compression
-        encoded_body = pickle.dumps({'table': codes, 'data': output})
+        encoded_codes = pickle.dumps(codes)
+        encoded_body = pickle.dumps({'table': codes, 'data': data})
 
-        Compression.save_to_file(encoded_body, filename, append=True)
+        code_size = len(encoded_codes)
+
+        if code_size > 2**16:
+            print(f'WARNING: Huffman code table size of {code_size} exceeds 2 byte limit. Failed to compress image')
+            return modified
+
+        code_size = Compression.intToBinaryString(code_size)
+        code_size = Compression.leftPadBinaryString(code_size)
+        code_size = Compression.splitBitStringOnByte(code_size)
+        code_size = [int(i, 2) for i in code_size]
+
+        Compression.save_to_file(bytes(code_size), filename, append=True) # Append size of code table
+
+        Compression.save_to_file(encoded_codes, filename, append=True) # Append code table
+
+        encoded_data = '1' + data
+        encoded_data = Compression.leftPadBinaryString(encoded_data)
+        
+        encoded_data = Compression.splitBitStringOnByte(encoded_data)
+        encoded_data = [int(i, 2) for i in encoded_data]
+        
+        Compression.save_to_file(bytes(encoded_data), filename, append=True)
 
         return modified
 
@@ -329,10 +363,26 @@ class Compression(ImageOperationInterface):
     @staticmethod
     def decompress_huffman(data: list[int]) -> npt.NDArray:
 
+        code_size = data[:2]
+        data = data[2:]
+
+        code_size = [Compression.intToBinaryString(b) for b in code_size]
+        code_size = [Compression.leftPadBinaryString(b) for b in code_size]
+        code_size = ''.join(code_size)
+        code_size = int(code_size, 2)
+
+        codes = data[:code_size]
+        data = data[code_size:]
+        codes = pickle.loads(bytes(codes))
+
+        data = [Compression.intToBinaryString(b) for b in data]
+        data = [Compression.leftPadBinaryString(b) for b in data]
+        data = ''.join(data)
+        
+        data = data[data.index('1') + 1:]
+
+
         # Prepare Codes
-        body = pickle.loads(bytes(data))
-        codes = body['table']
-        data = body['data']
         
         keys = list(codes.keys())
 
