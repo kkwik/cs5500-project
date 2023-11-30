@@ -217,6 +217,7 @@ class Compression(ImageOperationInterface):
                     output += codes['eol']
 
                 output += codes[pixel]
+        output += codes['eol']
         # print(output)
 
         codes = {v: k for k, v in codes.items()} # During decompression this mapping needs to be reversed, so we do it during compression
