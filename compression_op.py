@@ -174,6 +174,7 @@ class Compression(ImageOperationInterface):
         # Create Huffman Codes
         ######################
         probs = dict(zip(*np.unique(image_data, return_counts=True)))
+        # print(probs)
         line_end = {'eol': image_data.shape[0] - 1}
         probs.update(line_end)
 
@@ -198,8 +199,11 @@ class Compression(ImageOperationInterface):
 
         # Tabulate huffman codes based on tree
         tree = list(probs.keys())[0]
+        # print(tree)
         codes = Compression.recursive(tree, '')
-        encoded_codes = pickle.dumps(codes)
+        print(codes)
+        encoded_codes = {v: k for k, v in codes.items()} # Reverse dict for decompression
+        encoded_codes = pickle.dumps(encoded_codes)
 
         code_size = len(encoded_codes)
 
@@ -346,7 +350,7 @@ class Compression(ImageOperationInterface):
 
     @staticmethod
     def decompress_huffman(data: list[int]) -> npt.NDArray:
-        print(data)
+        # print(data)
         huffman_code_size = data[0:2]
         data = data[2:]
         huffman_code_size = ['{0:b}'.format(b) for b in huffman_code_size]  # Convert ints to bit strings
@@ -355,14 +359,53 @@ class Compression(ImageOperationInterface):
         huffman_code_size = int(huffman_code_size, 2)   # Interpret bit string as int
 
         huffman_codes = data[:huffman_code_size]
-        data = data[:huffman_code_size]
+        data = data[huffman_code_size:]
+        data = ['{0:b}'.format(b) for b in data]  # Convert ints to bit strings
+        data = [((8 - (len(b) % 8)) * '0') + b for b in data] # Zero left pad bit strings
+        data = ''.join(data)  # Concat bit strings
+
+        # Prepare Codes
         codes = pickle.loads(bytes(huffman_codes))
+        keys = list(codes.keys())
 
+        output = 0
+        row = []
+        row_count = 0
 
-        # while len(data) > 0:
-        #     pass
+        print(data[:50])
 
-        return np.array([1])
+        entries_left = len(data)
+        with tqdm(total=entries_left) as pbar:
+            while len(data) > 0:
+                window = data[0]
+                while window not in keys:
+                    window = data[:len(window) + 1]
+
+                data = data[len(window):]
+                symbol = codes[window]
+
+                if symbol == 'eol':
+                        # new line
+                        row = np.array(row)
+                        if row_count == 0:
+                            output = row
+                            print(f'first row: {output}')
+                        else:
+                            print(f'row: {row}')
+                            print(f'output: {output}')
+                            output = np.vstack([output, row])
+                        
+                        row = []
+                        row_count += 1
+                else:
+                    row.append(symbol)
+                    print(f'in progress: {row}')
+
+                entries_removed = entries_left - len(data)
+                pbar.update(entries_removed)
+                entries_left -= entries_removed
+
+        return output.astype(np.uint8) 
 
     @staticmethod
     def read_compressed_data(data: list[int]) -> npt.NDArray:
