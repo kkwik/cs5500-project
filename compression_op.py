@@ -201,26 +201,7 @@ class Compression(ImageOperationInterface):
         tree = list(probs.keys())[0]
         # print(tree)
         codes = Compression.recursive(tree, '')
-        print(codes)
-        encoded_codes = {v: k for k, v in codes.items()} # Reverse dict for decompression
-        encoded_codes = pickle.dumps(encoded_codes)
 
-        code_size = len(encoded_codes)
-
-        # Sanity check on size of huffman code
-        if code_size > 2**16:
-            print(f'WARNING: Huffman code table size of {code_size} exceeds 2 byte limit. Failed to compress image')
-            return modified
-
-        binary_code_size = '{0:b}'.format(code_size)
-        binary_code_size = ((8 - (len(binary_code_size) % 8)) * '0') + binary_code_size # Left pad
-        binary_code_size = [binary_code_size[i*8:i*8+8] for i in range(int(len(binary_code_size)/8))] # Split into bytes
-        binary_code_size = [int(i, 2) for i in binary_code_size] # Interpret 8 bit strings as ints
-
-        Compression.save_to_file(bytes(binary_code_size), filename, append=True) # Save codes size as 2 bytes
-
-        # Save Huffman codes to file
-        Compression.save_to_file(encoded_codes, filename, append=True)
 
         #####################
         # Encode pixel values
@@ -232,20 +213,16 @@ class Compression(ImageOperationInterface):
                 pixel = image_data[y, x]
 
                 # If this is the first pixel of a new line, add eol signifier
-                if x == 0:
+                if x == 0 and y != 0:
                     output += codes['eol']
 
                 output += codes[pixel]
-        
-        output += ((8 - (len(output) % 8)) * '0') # Pad right side of data to 8 byte boundary
-        output = [output[i*8:i*8+8] for i in range(int(len(output)/8))] # Split string on 8 bit boundaries
-        output = [int(i, 2) for i in output] # Interpret 8 bit strings as ints
+        # print(output)
 
+        codes = {v: k for k, v in codes.items()} # During decompression this mapping needs to be reversed, so we do it during compression
+        encoded_body = pickle.dumps({'table': codes, 'data': output})
 
-
-        encoded_data = bytes(output)
-
-        Compression.save_to_file(encoded_data, filename, append=True)
+        Compression.save_to_file(encoded_body, filename, append=True)
 
         return modified
 
@@ -350,29 +327,17 @@ class Compression(ImageOperationInterface):
 
     @staticmethod
     def decompress_huffman(data: list[int]) -> npt.NDArray:
-        # print(data)
-        huffman_code_size = data[0:2]
-        data = data[2:]
-        huffman_code_size = ['{0:b}'.format(b) for b in huffman_code_size]  # Convert ints to bit strings
-        huffman_code_size = [((8 - (len(b) % 8)) * '0') + b for b in huffman_code_size] # Zero left pad bit strings
-        huffman_code_size = ''.join(huffman_code_size)  # Concat bit strings
-        huffman_code_size = int(huffman_code_size, 2)   # Interpret bit string as int
-
-        huffman_codes = data[:huffman_code_size]
-        data = data[huffman_code_size:]
-        data = ['{0:b}'.format(b) for b in data]  # Convert ints to bit strings
-        data = [((8 - (len(b) % 8)) * '0') + b for b in data] # Zero left pad bit strings
-        data = ''.join(data)  # Concat bit strings
 
         # Prepare Codes
-        codes = pickle.loads(bytes(huffman_codes))
+        body = pickle.loads(bytes(data))
+        codes = body['table']
+        data = body['data']
+        
         keys = list(codes.keys())
 
         output = 0
         row = []
         row_count = 0
-
-        print(data[:50])
 
         entries_left = len(data)
         with tqdm(total=entries_left) as pbar:
@@ -389,17 +354,13 @@ class Compression(ImageOperationInterface):
                         row = np.array(row)
                         if row_count == 0:
                             output = row
-                            print(f'first row: {output}')
                         else:
-                            print(f'row: {row}')
-                            print(f'output: {output}')
                             output = np.vstack([output, row])
                         
                         row = []
                         row_count += 1
                 else:
                     row.append(symbol)
-                    print(f'in progress: {row}')
 
                 entries_removed = entries_left - len(data)
                 pbar.update(entries_removed)
