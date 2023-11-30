@@ -16,7 +16,7 @@ class Compression(ImageOperationInterface):
     def get_gui():
         contents = [
             [
-                sg.Combo(['Grayscale RLE', 'Bitplane RLE', 'Huffman'], default_value='Grayscale RLE', key=f'{Compression.name()}_SAVE_TYPE'),
+                sg.Combo(['Grayscale RLE', 'Bitplane RLE', 'Huffman', 'LZW'], default_value='Grayscale RLE', key=f'{Compression.name()}_SAVE_TYPE'),
                 sg.Text("File Name:"),
                 sg.Input('compressed_file', size=(10,1), key=f'{Compression.name()}_FILE_NAME'),
                 sg.Button('Save', key=f'{Compression.name()}_SAVE')
@@ -260,6 +260,11 @@ class Compression(ImageOperationInterface):
         Compression.save_to_file(bytes(encoded_data), filename, append=True)
 
         return modified
+    
+    @staticmethod
+    def compress_lzw(modified: dict[str, str], filename):
+        dictionary = {i: i for i in range(2**modified['gray_resolution'])}
+        return modified
 
     @staticmethod
     def save(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
@@ -271,6 +276,8 @@ class Compression(ImageOperationInterface):
             Compression.compress_bitplane(modified, values[f'{Compression.name()}_FILE_NAME'])
         elif save_type == "Huffman":
             Compression.compress_huffman(modified, values[f'{Compression.name()}_FILE_NAME'])
+        elif save_type == "LZW":
+            Compression.compress_lzw(modified, values[f'{Compression.name()}_FILE_NAME'])
 
         return modified
 
@@ -418,6 +425,10 @@ class Compression(ImageOperationInterface):
                 entries_left -= entries_removed
 
         return output.astype(np.uint8) 
+    
+    @staticmethod
+    def decompress_lzw(data: list[int]) -> npt.NDArray:
+        return
 
     @staticmethod
     def read_compressed_data(data: list[int]) -> npt.NDArray:
@@ -431,6 +442,8 @@ class Compression(ImageOperationInterface):
             data_array = Compression.decompress_bitplane(data)
         elif type_indicator == 2:
             data_array = Compression.decompress_huffman(data)
+        elif type_indicator == 3:
+            data_array = Compression.decompress_lzw(data)
         
         return data_array
 
