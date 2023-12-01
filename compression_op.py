@@ -8,6 +8,8 @@ from math import log
 
 
 class Compression(ImageOperationInterface):
+    LZW_BIT_LENGTH = 12
+
     @staticmethod
     def name():
         return 'COMPRESSION'
@@ -39,16 +41,15 @@ class Compression(ImageOperationInterface):
         return '{0:b}'.format(num)
 
     @staticmethod
-    def leftPadBinaryString(bits: str, desiredByteCount: int = 0) -> str:
-        tmp = ((8 - (len(bits) % 8)) * '0') + bits if len(bits) % 8 != 0 else bits
-        byteLength = len(tmp) / 8
-        if desiredByteCount > byteLength:
-            tmp = (int(desiredByteCount - byteLength) * '00000000') + tmp
-        return tmp
+    def leftPadBinaryString(bits: str, desiredBitCount: int = 0) -> str:
+        if desiredBitCount == 0:
+            return ((8 - (len(bits) % 8)) * '0') + bits if len(bits) % 8 != 0 else bits
+        else:
+            return (desiredBitCount - len(bits)) * '0' + bits if desiredBitCount > len(bits) else bits
 
     @staticmethod
-    def splitBitStringOnByte(bits: str) -> list[str]:
-        return [bits[i*8:i*8+8] for i in range(int(len(bits)/8))]
+    def splitBitStringIntoChunks(bits: str, chunk_size: int = 8) -> list[str]:
+        return [bits[i*chunk_size:i*chunk_size+chunk_size] for i in range(int(len(bits)/chunk_size))]
 
     ###
     # Compress
@@ -184,7 +185,7 @@ class Compression(ImageOperationInterface):
         image_data = modified['image']
 
         output = []
-        output.append(2) # First byte indicates type of compression. 1 is bitplane RLE
+        output.append(2) # First byte indicates type of compression. 2 indicates huffman
         Compression.save_to_file(bytes(output), filename) # Save compression type
 
         ######################
@@ -249,7 +250,7 @@ class Compression(ImageOperationInterface):
 
         code_size = Compression.intToBinaryString(code_size)
         code_size = Compression.leftPadBinaryString(code_size)
-        code_size = Compression.splitBitStringOnByte(code_size)
+        code_size = Compression.splitBitStringIntoChunks(code_size)
         code_size = [int(i, 2) for i in code_size]
 
         Compression.save_to_file(bytes(code_size), filename, append=True) # Append size of code table
@@ -259,36 +260,52 @@ class Compression(ImageOperationInterface):
         encoded_data = '1' + data
         encoded_data = Compression.leftPadBinaryString(encoded_data)
         
-        encoded_data = Compression.splitBitStringOnByte(encoded_data)
+        encoded_data = Compression.splitBitStringIntoChunks(encoded_data)
         encoded_data = [int(i, 2) for i in encoded_data]
         
         Compression.save_to_file(bytes(encoded_data), filename, append=True)
 
         return modified
+
+    @staticmethod
+    def get_lzw_dictionary() -> dict:
+        dictionary = {str(i): i for i in range(256)}
+        dictionary[256] = 256   # 2**bit_depth will be clear table
+        dictionary[257] = 257   # 2**bit_depth + 1 will be end of image
+        dictionary[258] = 258   # 2**bit_depth + 2 will be end of line
+        return dictionary
     
     @staticmethod
     def compress_lzw(modified: dict[str, str], filename):
         image_data = modified['image']
-        bit_depth = modified['gray_resolution']
+
+        output = []
+        output.append(3) # First byte indicates type of compression. 3 indicates LZW
+        Compression.save_to_file(bytes(output), filename) # Save compression type
 
         # Create initial dictionary
-        dictionary = {str(i): i for i in range(2**bit_depth)}
-        dictionary[str(2**bit_depth)] = 2**bit_depth   # -1 will indicate a new line
+        dictionary = Compression.get_lzw_dictionary()
 
         # Insert eol indicators
         flattened = image_data.flatten()
         eol_indices = [image_data.shape[1] * (i + 1) for i in range(image_data.shape[0])]
-        data = np.insert(flattened, eol_indices, -1)
+        data = np.insert(flattened, eol_indices, 258)
         data = list(data)
 
         indices = []
 
+        dictionary_size = 2**Compression.LZW_BIT_LENGTH
 
         normalize = lambda x: '-'.join([str(i) for i in x]) if type(x) is list else str(x)
 
         entries_left = len(data)
         with tqdm(total=entries_left) as pbar:
             while len(data) > 0:
+                # Table size exceeded, clear the table
+                if len(dictionary) >= dictionary_size:
+                    indices.append(256)
+                    dictionary = Compression.get_lzw_dictionary()
+
                 keys = list(dictionary.keys()) # Get updated list of dictionary entries
 
                 window = [data[0]]
@@ -306,7 +323,7 @@ class Compression(ImageOperationInterface):
                 else:
                     indices.append(dictionary[normalize(emit)])
                     data = data[len(emit):]
-                    dictionary[normalize(window)] = len(dictionary) - 1
+                    dictionary[normalize(window)] = len(dictionary)
                 
                 entries_removed = entries_left - len(data)
                 pbar.update(entries_removed)
@@ -315,30 +332,11 @@ class Compression(ImageOperationInterface):
         #########
         # Storing
         #########
-
-        
-        maximum_index = max(indices)
-        necessary_bytes = int(log(maximum_index, 256)) + 1
-        
-        print(f'Maximum index of {maximum_index}, using {necessary_bytes} bytes per index')
-        Compression.save_to_file(bytes([necessary_bytes]), filename)
-        
-        indices = [Compression.leftPadBinaryString(Compression.intToBinaryString(n), necessary_bytes) for n in indices]
-        indices = [Compression.splitBitStringOnByte(n) for n in indices]
-
-        flat_indices = []
-        for pair in indices:
-            flat_indices += pair
-        
-        indices = flat_indices
-
-        indices = [int(i, 2) for i in indices]
-
-        print(indices)
-
-
-
-
+        indices = [Compression.leftPadBinaryString(Compression.intToBinaryString(n), Compression.LZW_BIT_LENGTH) for n in indices] # Turn integer indices into bitstrings and left pad as reqiured
+        indices = ''.join(indices) # Combine all indices as one bit string
+        indices = Compression.leftPadBinaryString(indices) # Because we're about to split on 8 bits we need to pad to 8 bits
+        indices = Compression.splitBitStringIntoChunks(indices) # Split up into bytes
+        indices = [int(i, 2) for i in indices]  # Convert back to ints
 
         Compression.save_to_file(bytes(indices), filename, append=True)
 
@@ -506,6 +504,11 @@ class Compression(ImageOperationInterface):
     
     @staticmethod
     def decompress_lzw(data: list[int]) -> npt.NDArray:
+        indices = [Compression.leftPadBinaryString(Compression.intToBinaryString(i)) for i in data] # Turn ints into bytes
+        indices = ''.join(indices)  # Join bytes together
+        indices = Compression.splitBitStringIntoChunks(indices, Compression.LZW_BIT_LENGTH) # Split bytes on 12 bit boundaries
+        indices = [int(i, 2) for i in indices]
+
         return
 
     @staticmethod
