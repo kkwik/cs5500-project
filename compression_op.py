@@ -4,6 +4,7 @@ import numpy as np
 import numpy.typing as npt
 from tqdm import tqdm
 import pickle
+from math import log
 
 
 class Compression(ImageOperationInterface):
@@ -38,8 +39,12 @@ class Compression(ImageOperationInterface):
         return '{0:b}'.format(num)
 
     @staticmethod
-    def leftPadBinaryString(bits: str) -> str:
-        return ((8 - (len(bits) % 8)) * '0') + bits if len(bits) % 8 != 0 else bits
+    def leftPadBinaryString(bits: str, desiredByteCount: int = 0) -> str:
+        tmp = ((8 - (len(bits) % 8)) * '0') + bits if len(bits) % 8 != 0 else bits
+        byteLength = len(tmp) / 8
+        if desiredByteCount > byteLength:
+            tmp = (int(desiredByteCount - byteLength) * '00000000') + tmp
+        return tmp
 
     @staticmethod
     def splitBitStringOnByte(bits: str) -> list[str]:
@@ -263,7 +268,80 @@ class Compression(ImageOperationInterface):
     
     @staticmethod
     def compress_lzw(modified: dict[str, str], filename):
-        dictionary = {i: i for i in range(2**modified['gray_resolution'])}
+        image_data = modified['image']
+        bit_depth = modified['gray_resolution']
+
+        # Create initial dictionary
+        dictionary = {str(i): i for i in range(2**bit_depth)}
+        dictionary[str(2**bit_depth)] = 2**bit_depth   # -1 will indicate a new line
+
+        # Insert eol indicators
+        flattened = image_data.flatten()
+        eol_indices = [image_data.shape[1] * (i + 1) for i in range(image_data.shape[0])]
+        data = np.insert(flattened, eol_indices, -1)
+        data = list(data)
+
+        indices = []
+
+
+        normalize = lambda x: '-'.join([str(i) for i in x]) if type(x) is list else str(x)
+
+        entries_left = len(data)
+        with tqdm(total=entries_left) as pbar:
+            while len(data) > 0:
+                keys = list(dictionary.keys()) # Get updated list of dictionary entries
+
+                window = [data[0]]
+                while normalize(window) in keys and len(window) < len(data):
+                    window = data[:len(window) + 1]
+                
+                # print(f'{normalize(window)} not in dictionary, adding it. emitting {normalize(window[:-1])}, data: {data[:5]}')
+                emit = window[:-1]
+
+                if normalize(window) in keys:
+                    # We've exited the above loop but the window is a key, 
+                    # therefore we've run out of symbols to consume. Append what we have
+                    indices.append(dictionary[normalize(window)])
+                    data = data[len(window):]
+                else:
+                    indices.append(dictionary[normalize(emit)])
+                    data = data[len(emit):]
+                    dictionary[normalize(window)] = len(dictionary) - 1
+                
+                entries_removed = entries_left - len(data)
+                pbar.update(entries_removed)
+                entries_left -= entries_removed
+
+        #########
+        # Storing
+        #########
+
+        
+        maximum_index = max(indices)
+        necessary_bytes = int(log(maximum_index, 256)) + 1
+        
+        print(f'Maximum index of {maximum_index}, using {necessary_bytes} bytes per index')
+        Compression.save_to_file(bytes([necessary_bytes]), filename)
+        
+        indices = [Compression.leftPadBinaryString(Compression.intToBinaryString(n), necessary_bytes) for n in indices]
+        indices = [Compression.splitBitStringOnByte(n) for n in indices]
+
+        flat_indices = []
+        for pair in indices:
+            flat_indices += pair
+        
+        indices = flat_indices
+
+        indices = [int(i, 2) for i in indices]
+
+        print(indices)
+
+
+
+
+
+        Compression.save_to_file(bytes(indices), filename, append=True)
+
         return modified
 
     @staticmethod
