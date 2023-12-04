@@ -192,7 +192,7 @@ class Compression(ImageOperationInterface):
         # Create Huffman Codes
         ######################
         probs = dict(zip(*np.unique(image_data, return_counts=True)))
-        # print(probs)
+
         line_end = {'eol': image_data.shape[0] - 1}
         probs.update(line_end)
 
@@ -217,7 +217,7 @@ class Compression(ImageOperationInterface):
 
         # Tabulate huffman codes based on tree
         tree = list(probs.keys())[0]
-        # print(tree)
+
         codes = Compression.recursive(tree, '')
 
 
@@ -236,7 +236,6 @@ class Compression(ImageOperationInterface):
 
                 data += codes[pixel]
         data += codes['eol']
-        # print(output)
 
         codes = {v: k for k, v in codes.items()} # During decompression this mapping needs to be reversed, so we do it during compression
         encoded_codes = pickle.dumps(codes)
@@ -270,12 +269,10 @@ class Compression(ImageOperationInterface):
     @staticmethod
     def get_lzw_dictionary(decoding: bool = False) -> dict:
         if not decoding:
-            dictionary = {str(i): i for i in range(259)}
+            dictionary = {str(i): i for i in range(257)}
         else:
-            dictionary = {i: str(i) for i in range(259)}
-        # 256 will be clear table
-        # 257  will be end of image
-        # 258 will be end of line
+            dictionary = {i: str(i) for i in range(257)}
+        # 256 will be end of line
         return dictionary
     
     @staticmethod
@@ -292,9 +289,8 @@ class Compression(ImageOperationInterface):
         # Insert eol indicators
         flattened = image_data.flatten().astype(np.uint)    # Allow larger values so we can insert the line end values which are > 255
         eol_indices = [image_data.shape[1] * (i + 1) for i in range(image_data.shape[0])]
-        data = np.insert(flattened, eol_indices, 258)
+        data = np.insert(flattened, eol_indices, 256)
         data = list(data)
-        print(data)
 
         indices = []
 
@@ -305,9 +301,9 @@ class Compression(ImageOperationInterface):
         entries_left = len(data)
         with tqdm(total=entries_left) as pbar:
             while len(data) > 0:
-                # Table size exceeded, clear the table
-                if len(dictionary) >= dictionary_size:
-                    indices.append(256)
+                
+                if len(dictionary) >= dictionary_size-1:
+                    # Table size exceeded, clear the table
                     dictionary = Compression.get_lzw_dictionary()
 
                 keys = list(dictionary.keys()) # Get updated list of dictionary entries
@@ -316,7 +312,6 @@ class Compression(ImageOperationInterface):
                 while normalize(window) in keys and len(window) < len(data):
                     window = data[:len(window) + 1]
                 
-                # print(f'{normalize(window)} not in dictionary, adding it. emitting {normalize(window[:-1])}, data: {data[:5]}')
                 emit = window[:-1]
 
                 if normalize(window) in keys:
@@ -336,7 +331,6 @@ class Compression(ImageOperationInterface):
         #########
         # Storing
         #########
-        # print(indices)
         indices = [Compression.leftPadBinaryString(Compression.intToBinaryString(n), Compression.LZW_BIT_LENGTH) for n in indices] # Turn integer indices into bitstrings and left pad as reqiured
         indices = ''.join(indices) # Combine all indices as one bit string
         indices = Compression.leftPadBinaryString(indices) # Because we're about to split on 8 bits we need to pad to 8 bits
@@ -515,10 +509,10 @@ class Compression(ImageOperationInterface):
         indices = indices[len(indices) % 12:] # We need to remove any padding that was added to make the data fit /8
         indices = Compression.splitBitStringIntoChunks(indices, Compression.LZW_BIT_LENGTH) # Split bytes on 12 bit boundaries
         indices = [int(i, 2) for i in indices]
-        # print(indices)
 
         # Decode data
         dictionary = Compression.get_lzw_dictionary(decoding=True)
+        dictionary_size = 2**Compression.LZW_BIT_LENGTH
 
         normalize = lambda x: '-'.join([str(i) for i in x]) if type(x) is list else str(x)
 
@@ -530,19 +524,20 @@ class Compression(ImageOperationInterface):
             while len(indices) > 0:
                 keys = list(dictionary.keys()) # Get updated list of dictionary entries
 
+                if len(dictionary) >= dictionary_size-1:
+                    # Table size exceeded, clear the table
+                    dictionary = Compression.get_lzw_dictionary(decoding=True)
+
                 symbol = indices[0]
                 indices = indices[1:]
 
-                if symbol == 256:
-                    dictionary = Compression.get_lzw_dictionary(decoding=True) # Clear dictionary
-                elif symbol in keys:
+                if symbol in keys:
                     result = dictionary[symbol]
                     symbols.extend(result.split('-'))
                     if prev:
                         dictionary[len(dictionary)] = normalize([prev, result.split('-')[0]])
                     prev = result
                 else:
-                    print('not in dict')
                     prev = normalize([prev, prev.split('-')[0]])
                     dictionary[len(dictionary)] = prev
                     symbols.extend(prev.split('-'))
@@ -555,14 +550,11 @@ class Compression(ImageOperationInterface):
         symbols = [int(o) for o in symbols]
         
         # Convert 1D data back into 2D
-        print(symbols)
         output = []
         row = []
         
-
         for s in symbols:
-            if s == 258:
-                # print(f'row: {len(row)}')
+            if s == 256:
                 output.append(row)
                 row = []
             else:
