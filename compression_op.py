@@ -268,11 +268,14 @@ class Compression(ImageOperationInterface):
         return modified
 
     @staticmethod
-    def get_lzw_dictionary() -> dict:
-        dictionary = {str(i): i for i in range(256)}
-        dictionary[256] = 256   # 2**bit_depth will be clear table
-        dictionary[257] = 257   # 2**bit_depth + 1 will be end of image
-        dictionary[258] = 258   # 2**bit_depth + 2 will be end of line
+    def get_lzw_dictionary(decoding: bool = False) -> dict:
+        if not decoding:
+            dictionary = {str(i): i for i in range(259)}
+        else:
+            dictionary = {i: str(i) for i in range(259)}
+        # 256 will be clear table
+        # 257  will be end of image
+        # 258 will be end of line
         return dictionary
     
     @staticmethod
@@ -287,10 +290,11 @@ class Compression(ImageOperationInterface):
         dictionary = Compression.get_lzw_dictionary()
 
         # Insert eol indicators
-        flattened = image_data.flatten()
+        flattened = image_data.flatten().astype(np.uint)    # Allow larger values so we can insert the line end values which are > 255
         eol_indices = [image_data.shape[1] * (i + 1) for i in range(image_data.shape[0])]
         data = np.insert(flattened, eol_indices, 258)
         data = list(data)
+        print(data)
 
         indices = []
 
@@ -332,6 +336,7 @@ class Compression(ImageOperationInterface):
         #########
         # Storing
         #########
+        # print(indices)
         indices = [Compression.leftPadBinaryString(Compression.intToBinaryString(n), Compression.LZW_BIT_LENGTH) for n in indices] # Turn integer indices into bitstrings and left pad as reqiured
         indices = ''.join(indices) # Combine all indices as one bit string
         indices = Compression.leftPadBinaryString(indices) # Because we're about to split on 8 bits we need to pad to 8 bits
@@ -504,12 +509,68 @@ class Compression(ImageOperationInterface):
     
     @staticmethod
     def decompress_lzw(data: list[int]) -> npt.NDArray:
+        # Read data back into 12 bit entries
         indices = [Compression.leftPadBinaryString(Compression.intToBinaryString(i)) for i in data] # Turn ints into bytes
         indices = ''.join(indices)  # Join bytes together
+        indices = indices[len(indices) % 12:] # We need to remove any padding that was added to make the data fit /8
         indices = Compression.splitBitStringIntoChunks(indices, Compression.LZW_BIT_LENGTH) # Split bytes on 12 bit boundaries
         indices = [int(i, 2) for i in indices]
+        # print(indices)
 
-        return
+        # Decode data
+        dictionary = Compression.get_lzw_dictionary(decoding=True)
+
+        normalize = lambda x: '-'.join([str(i) for i in x]) if type(x) is list else str(x)
+
+        symbols = []
+
+        entries_left = len(indices)
+        with tqdm(total=entries_left) as pbar:
+            prev = ''
+            while len(indices) > 0:
+                keys = list(dictionary.keys()) # Get updated list of dictionary entries
+
+                symbol = indices[0]
+                indices = indices[1:]
+
+                if symbol == 256:
+                    dictionary = Compression.get_lzw_dictionary(decoding=True) # Clear dictionary
+                elif symbol in keys:
+                    result = dictionary[symbol]
+                    symbols.extend(result.split('-'))
+                    if prev:
+                        dictionary[len(dictionary)] = normalize([prev, result.split('-')[0]])
+                    prev = result
+                else:
+                    print('not in dict')
+                    prev = normalize([prev, prev.split('-')[0]])
+                    dictionary[len(dictionary)] = prev
+                    symbols.extend(prev.split('-'))
+                
+                
+                entries_removed = entries_left - len(indices)
+                pbar.update(entries_removed)
+                entries_left -= entries_removed
+
+        symbols = [int(o) for o in symbols]
+        
+        # Convert 1D data back into 2D
+        print(symbols)
+        output = []
+        row = []
+        
+
+        for s in symbols:
+            if s == 258:
+                # print(f'row: {len(row)}')
+                output.append(row)
+                row = []
+            else:
+                row.append(s)
+        
+        output = np.array(output)
+
+        return output.astype(np.uint8)
 
     @staticmethod
     def read_compressed_data(data: list[int]) -> npt.NDArray:
