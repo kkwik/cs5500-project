@@ -74,31 +74,36 @@ class Compression(ImageOperationInterface):
         prev_pixel_val = -1
         count = 0
 
-        for y in range(image_data.shape[0]):
-            for x in range(image_data.shape[1]):
-                pixel = image_data[y, x]
+        print('Compressing image using Grayscale RLE...')
+        with tqdm(total=image_data.size) as pbar:
+            for y in range(image_data.shape[0]):
+                for x in range(image_data.shape[1]):
+                    pixel = image_data[y, x]
 
-                if x == 0:
-                    prev_pixel_val = pixel
+                    if x == 0:
+                        prev_pixel_val = pixel
 
-                if pixel == prev_pixel_val:
-                    # Handle case where count exceeds byte size
-                    if count == 255:
+                    if pixel == prev_pixel_val:
+                        # Handle case where count exceeds byte size
+                        if count == 255:
+                            output.append(count)
+                            output.append(pixel)
+                            count = 0
+                        count += 1
+
+                    else:
                         output.append(count)
-                        output.append(pixel)
+                        output.append(prev_pixel_val)
                         count = 0
-                    count += 1
+                        count += 1
+                        prev_pixel_val = pixel
 
-                else:
-                    output.append(count)
-                    output.append(prev_pixel_val)
-                    count = 0
-                    count += 1
-                    prev_pixel_val = pixel
-            output.append(count)
-            output.append(prev_pixel_val)
-            count = 0
-            output.extend(end_of_line)
+                    pbar.update(1) # Update progress bar
+
+                output.append(count)
+                output.append(prev_pixel_val)
+                count = 0
+                output.extend(end_of_line)
 
         Compression.save_to_file(bytes(output), filename)
 
@@ -117,38 +122,42 @@ class Compression(ImageOperationInterface):
         # 001: End of plane
         end_of_plane = [0, 0, 1]
 
+        print('Compressing image using Bitplane RLE...')
+        with tqdm(total=image_data.size) as pbar:
+            for d in range(bit_depth):
+                plane = np.bitwise_and(np.right_shift(image_data, d), 1)
 
-        for d in range(bit_depth):
-            plane = np.bitwise_and(np.right_shift(image_data, d), 1)
-
-            prev_pixel_val = 1
-            count = 0
-            for y in range(plane.shape[0]):
-                for x in range(plane.shape[1]):
-                    pixel = plane[y, x]
-
-                    # Handle case where start is a 0
-                    if x == 0 and pixel != prev_pixel_val:
-                        output.append(0)
-                        prev_pixel_val = pixel
-
-                    if pixel == prev_pixel_val:
-                        # Handle case where count exceeds byte size
-                        if count == 255:
-                            output.append(count)
-                            output.append(0)
-                            count = 0
-                        count += 1
-                            
-                    else:
-                        output.append(count)
-                        count = 0
-                        count += 1
-                        prev_pixel_val = pixel
-                output.append(count)
-                count = 0
                 prev_pixel_val = 1
-                output.extend(end_of_line)
+                count = 0
+                for y in range(plane.shape[0]):
+                    for x in range(plane.shape[1]):
+                        pixel = plane[y, x]
+
+                        # Handle case where start is a 0
+                        if x == 0 and pixel != prev_pixel_val:
+                            output.append(0)
+                            prev_pixel_val = pixel
+
+                        if pixel == prev_pixel_val:
+                            # Handle case where count exceeds byte size
+                            if count == 255:
+                                output.append(count)
+                                output.append(0)
+                                count = 0
+                            count += 1
+                                
+                        else:
+                            output.append(count)
+                            count = 0
+                            count += 1
+                            prev_pixel_val = pixel
+                        
+                        pbar.update(1) # Update progress bar
+
+                    output.append(count)
+                    count = 0
+                    prev_pixel_val = 1
+                    output.extend(end_of_line)
             output.extend(end_of_plane)
 
         Compression.save_to_file(bytes(output), filename)
@@ -226,15 +235,19 @@ class Compression(ImageOperationInterface):
         #####################
         data = ''
         
-        for y in range(image_data.shape[0]):
-            for x in range(image_data.shape[1]):
-                pixel = image_data[y, x]
+        print('Compressing image using Huffman coding...')
+        with tqdm(total=image_data.size) as pbar:
+            for y in range(image_data.shape[0]):
+                for x in range(image_data.shape[1]):
+                    pixel = image_data[y, x]
 
-                # If this is the first pixel of a new line, add eol signifier
-                if x == 0 and y != 0:
-                    data += codes['eol']
+                    # If this is the first pixel of a new line, add eol signifier
+                    if x == 0 and y != 0:
+                        data += codes['eol']
 
-                data += codes[pixel]
+                    data += codes[pixel]
+
+                    pbar.update(1) # Update progress bar
         data += codes['eol']
 
         codes = {v: k for k, v in codes.items()} # During decompression this mapping needs to be reversed, so we do it during compression
@@ -299,6 +312,7 @@ class Compression(ImageOperationInterface):
         normalize = lambda x: '-'.join([str(i) for i in x]) if type(x) is list else str(x)
 
         entries_left = len(data)
+        print('Compressing image using LZW...')
         with tqdm(total=entries_left) as pbar:
             while len(data) > 0:
                 
@@ -366,6 +380,7 @@ class Compression(ImageOperationInterface):
         row_count = 0
 
         entries_left = len(data)
+        print('Decompressing Grayscale RLE compressed image...')
         with tqdm(total=entries_left) as pbar:
             while len(data) > 0:
                 if data[0] == 0 and data[1] == 0:
@@ -402,6 +417,7 @@ class Compression(ImageOperationInterface):
         row_count = 0
 
         entries_left = len(data)
+        print('Decompressing bitplane RLE compressed image...')
         with tqdm(total=entries_left) as pbar:
             while len(data) > 0:
                 if len(data) > 2 and data[0] == 0 and data[1] == 0:
@@ -473,6 +489,7 @@ class Compression(ImageOperationInterface):
         row_count = 0
 
         entries_left = len(data)
+        print('Decompressing Huffman coding compressed image...')
         with tqdm(total=entries_left) as pbar:
             while len(data) > 0:
                 window = data[0]
@@ -519,6 +536,7 @@ class Compression(ImageOperationInterface):
         symbols = []
 
         entries_left = len(indices)
+        print('Decompressing LZW compressed image...')
         with tqdm(total=entries_left) as pbar:
             prev = ''
             while len(indices) > 0:
