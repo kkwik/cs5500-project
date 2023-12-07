@@ -151,14 +151,11 @@ class Compression(ImageOperationInterface):
                             count = 0
                             count += 1
                             prev_pixel_val = pixel
-                        
-                        pbar.update(1) # Update progress bar
-
                     output.append(count)
                     count = 0
                     prev_pixel_val = 1
                     output.extend(end_of_line)
-            output.extend(end_of_plane)
+                output.extend(end_of_plane)
 
         Compression.save_to_file(bytes(output), filename)
 
