@@ -15,7 +15,8 @@ class Misc(ImageOperationInterface):
         contents = [
             [
                 sg.Button('Reset ↺', key=f'{Misc.name()}_RESET'),
-                sg.Button('Subtract', key=f'{Misc.name()}_SUBTRACT')
+                sg.Button('Subtract', key=f'{Misc.name()}_SUBTRACT'),
+                sg.Button('MSE', key=f'{Misc.name()}_MSE')
             ],
             [
                 sg.Text("File Name:"),
@@ -44,6 +45,28 @@ class Misc(ImageOperationInterface):
         image.save(values[f'{Misc.name()}_FILE_NAME'])
         return modified
 
+    @staticmethod
+    def mse(original: dict[str, str], modified: dict[str, str], window, values) -> dict[str, str]:
+        if original['image'].shape != modified['image'].shape:
+            sg.popup('MSE', 'Dimension mismatch -- MSE cannot be calculated')
+            return modified
+        
+        original_image = list(copy.deepcopy(original['image']).flatten())
+        modified_image = list(copy.deepcopy(modified['image']).flatten())
+
+        values = zip(original_image, modified_image)
+
+        summed = 0
+        for o, m in values:
+            diff = o - m
+            sq = diff ** 2
+            summed += sq
+
+        mse = summed / o.size
+        sg.popup('MSE', f' = {mse}')
+
+        return modified
+        
     # Events
     @staticmethod
     def get_operation(operation_name: str) -> callable:
@@ -53,6 +76,8 @@ class Misc(ImageOperationInterface):
             return Misc.subtract
         elif operation_name == f'{Misc.name()}_SAVE':
             return Misc.save
+        elif operation_name == f'{Misc.name()}_MSE':
+            return Misc.mse
         else:
             print("Unknown misc operation")
         return
