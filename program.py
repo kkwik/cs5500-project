@@ -96,6 +96,8 @@ while True:
 
     if event == "Exit" or event == sg.WIN_CLOSED:
         break
+    elif values["IMAGE_SELECTED"] == '':
+        sg.popup('', 'Please select an image first')
     elif event == "IMAGE_SELECTED":
         # Input Image updated, update display
         print("IMAGE SELECTED")
