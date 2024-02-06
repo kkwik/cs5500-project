@@ -1,4 +1,4 @@
 pysimplegui == 4.60.5
 numpy == 1.26.0
-Pillow == 10.0.1
+Pillow == 10.2.0
 tqdm == 4.66.1
